@@ -1,4 +1,5 @@
 import sys
+import torch
 sys.path.insert(0, '../../model_utils')
 sys.path.insert(0, '../../contrastive_models/simsiam_custom/simsiam')
 
