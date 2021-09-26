@@ -10,7 +10,7 @@ from torch import optim
 from torchvision import transforms
 from sklearn import metrics
 
-from cnn_models import ResNet50_SimCLR_SimSiam_no_meteo, ResNet50_SimCLR_SimSiam_joint_meteo
+from cnn_models import ResNet50_ImageNet_pretrained_no_meteo, ResNet50_ImageNet_pretrained_joint_meteo
 from supervised_utils import eval_stat, plot_result, calculateSpatial, spatialRPlot, plot_all
 from supervised_utils import getAllStations, getTestStations
 from supervised_utils import loadRTandRFModel, predictWithRF
@@ -24,7 +24,7 @@ torch.cuda.manual_seed(2020)
 torch.cuda.manual_seed_all(2020)
 torch.backends.cudnn.deterministic = True
 
-def run_supervised_SimSiam(requires_meteo=False, train_stations=-1, lr=5e-7):
+def run_supervised_randomly_initialized(requires_meteo=False, train_stations=-1, lr=5e-8):
     root_dir = '../../data/Delhi_labeled.pkl'
     img_transform = transforms.ToTensor()
     if train_stations > 0:
@@ -71,14 +71,12 @@ def run_supervised_SimSiam(requires_meteo=False, train_stations=-1, lr=5e-7):
     max_epochs = 500
     early_stopping_threshold = 20
     early_stopping_metric = 'test_loss'
-    encoder_name = 'resnet50_SimSiam'
-    # ssl_path = './model_checkpoint/encoder_params_resnet18_spatiotemporal_Delhi.pkl'
-    ssl_path = '../../model_checkpoint/encoder_params_resnet50_spatiotemporal_Delhi_SimSiam.pkl'
+    encoder_name = 'resnet50'
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     if requires_meteo:
-        model = ResNet50_SimCLR_SimSiam_joint_meteo(ssl_path, transformed_meteo_dim).to(device)
+        model = ResNet50_ImageNet_pretrained_joint_meteo(transformed_meteo_dim, pretrained=False).to(device)
     else:
-        model = ResNet50_SimCLR_SimSiam_no_meteo(ssl_path).to(device)
+        model = ResNet50_ImageNet_pretrained_no_meteo(pretrained=False).to(device)
         
     # optimizer = optim.SGD(model.parameters(), lr=lr, momentum=0.9, weight_decay=0.1)
     optimizer = optim.Adam(model.parameters(), lr=lr, betas=(0.01, 0.01), weight_decay=0.1)
@@ -86,9 +84,9 @@ def run_supervised_SimSiam(requires_meteo=False, train_stations=-1, lr=5e-7):
         y_train_pred, y_train, y_test_pred, y_test, loss_train, loss_test, spatial_R_test, spatial_rmse_test, current_epochs = run_with_regular_loss(
             model, optimizer, device, train_loader, train_loader_for_test, test_loader, 
             encoder_name=encoder_name, 
-            max_epochs=max_epochs, 
+            max_epochs=max_epochs,
             save_model=False, 
-            early_stopping_threshold=early_stopping_threshold, 
+            early_stopping_threshold=early_stopping_threshold,
             early_stopping_metric=early_stopping_metric, 
             requires_meteo=True, 
             scale_factor=scale_factor, 
@@ -111,7 +109,7 @@ def run_supervised_SimSiam(requires_meteo=False, train_stations=-1, lr=5e-7):
     
     # Save spatial statistics
     result_stats = {'RMSE': np.sqrt(metrics.mean_squared_error(y_test, y_test_pred)), 'Spatial_R': spatial_R, 'Spatial_RMSE': spatial_rmse}
-    result_path = './model_results/results_SimSiam.pkl'
+    result_path = './model_results/results_transfer_learning.pkl'
     os.makedirs(os.path.dirname(result_path), exist_ok=True)
     with open(result_path, 'ab') as fp:
         pkl.dump(result_stats, fp)
@@ -126,12 +124,12 @@ def run_supervised_SimSiam(requires_meteo=False, train_stations=-1, lr=5e-7):
 
 def cli_main():
     stations_num = [1, 2, 5, 10, 20, 40]
-    lrs_no_meteo = [5e-5, 8e-6, 5e-6, 5e-6, 7e-6, 1e-6]
-    lrs_meteo = [5e-7, 8e-8, 5e-8, 5e-8, 7e-8, 1e-8]
+    lrs_no_meteo = [1e-4, 5e-6, 5e-6, 2e-8, 2e-6, 1e-6]
+    lrs_meteo = [1e-6, 5e-8, 5e-8, 2e-8, 2e-8, 1e-8]
 
     for i in range(len(stations_num)):
-        run_supervised_SimSiam(requires_meteo=True, train_stations=stations_num[i], lr=lrs_meteo[i])
-        # run_supervised_SimSiam(requires_meteo=False, train_stations=stations_num[i], lr=lrs_no_meteo[i])
+        run_supervised_randomly_initialized(requires_meteo=True, train_stations=stations_num[i], lr=lrs_meteo[i])
+        # run_supervised_randomly_initialized(requires_meteo=False, train_stations=stations_num[i], lr=lrs_no_meteo[i])
 
 if __name__ == '__main__':
     cli_main()

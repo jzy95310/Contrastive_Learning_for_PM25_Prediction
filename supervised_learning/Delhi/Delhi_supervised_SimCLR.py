@@ -126,8 +126,8 @@ def run_supervised_SimCLR(requires_meteo=False, train_stations=-1, lr=5e-7):
 
 def cli_main():
     stations_num = [1, 2, 5, 10, 20, 40]
-    lrs_no_meteo = [1e-4, 1e-4, 5e-5, 5e-5, 5e-5, 1e-5]
-    lrs_meteo = [1e-6, 1e-6, 5e-7, 5e-7, 5e-7, 1e-7]
+    lrs_no_meteo = [1e-4, 2e-5, 2e-5, 2e-5, 3e-5, 5e-6]
+    lrs_meteo = [1e-6, 2e-7, 2e-7, 2e-7, 3e-7, 5e-8]
 
     for i in range(len(stations_num)):
         run_supervised_SimCLR(requires_meteo=True, train_stations=stations_num[i], lr=lrs_meteo[i])

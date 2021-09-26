@@ -10,11 +10,11 @@ for _ in range(2):
 
 # CNN model with ResNet50 architecture pretrained on ImageNet without meteorology
 class ResNet50_ImageNet_pretrained_no_meteo(nn.Module):
-    def __init__(self):
+    def __init__(self, pretrained=True):
         super(ResNet50_ImageNet_pretrained_no_meteo, self).__init__()
         
         # Load the pretrained weights on ImageNet
-        resnet50 = models.resnet50(pretrained=True)
+        resnet50 = models.resnet50(pretrained=pretrained)
         
         # Freeze all feature extraction layers in the encoder
         for param in resnet50.parameters():
@@ -43,11 +43,11 @@ class ResNet50_ImageNet_pretrained_no_meteo(nn.Module):
 
 # CNN model with ResNet50 architecture pretrained on ImageNet with meteorology
 class ResNet50_ImageNet_pretrained_joint_meteo(nn.Module):
-    def __init__(self, transformed_meteo_size):
+    def __init__(self, transformed_meteo_size, pretrained=True):
         super(ResNet50_ImageNet_pretrained_joint_meteo, self).__init__()
         
         # Load the pretrained weights on ImageNet
-        resnet50 = models.resnet50(pretrained=True)
+        resnet50 = models.resnet50(pretrained=pretrained)
         
         # Freeze all feature extraction layers in the encoder
         for param in resnet50.parameters():
