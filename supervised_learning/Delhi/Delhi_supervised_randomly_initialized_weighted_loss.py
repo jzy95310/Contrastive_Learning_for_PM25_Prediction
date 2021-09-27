@@ -127,7 +127,7 @@ def run_supervised_randomly_initialized(requires_meteo=False, train_stations=-1,
     
     # Save spatial statistics
     result_stats = {'RMSE': np.sqrt(metrics.mean_squared_error(y_test, y_test_pred)), 'spatial_R': spatial_R, 'spatial_RMSE': spatial_rmse}
-    result_path = './model_results/results_transfer_learning_weighted_loss.pkl'
+    result_path = './model_results/results_randomly_initialized_weighted_loss.pkl'
     os.makedirs(os.path.dirname(result_path), exist_ok=True)
     with open(result_path, 'ab') as fp:
         pkl.dump(result_stats, fp)
