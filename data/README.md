@@ -86,8 +86,8 @@ for data_point in data:
     data_point['lat'] = stations_latlon_mapping[data_point['Station_index']]['lat']
     data_point['lon'] = stations_latlon_mapping[data_point['Station_index']]['lon']
 
-station_names = set(map(lambda x: x['Station_index'], data))
-data = [[data_point for data_point in data if data_point['Station_index'] == name] for name in station_names]
+timestamps = set(map(lambda x: x['Meteo'].name, data))
+data = [[data_point for data_point in data if data_point['Meteo'].name == time] for time in timestamps]
 
 with open('./satellite_image_data_preprocessed.pkl', 'wb') as fp:
     pkl.dump(data, fp, protocol=pkl.HIGHEST_PROTOCOL)
