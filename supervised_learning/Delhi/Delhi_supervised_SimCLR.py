@@ -10,9 +10,9 @@ from torch import optim
 from torchvision import transforms
 from sklearn import metrics
 
-from cnn_models import ResNet50_SimCLR_SimSiam_no_meteo, ResNet50_SimCLR_SimSiam_joint_meteo
+from cnn_models import ResNet_SimCLR_SimSiam_no_meteo, ResNet_SimCLR_SimSiam_joint_meteo
 from supervised_utils import eval_stat, plot_result, calculateSpatial, spatialRPlot, plot_all
-from supervised_utils import getAllStations, getTestStations
+from supervised_utils import getTestStations
 from supervised_utils import loadRTandRFModel, predictWithRF
 from supervised_utils import initializeCNNdata
 from train_test_utils import run_with_regular_loss
@@ -27,16 +27,12 @@ torch.backends.cudnn.deterministic = True
 def run_supervised_SimCLR(requires_meteo=False, train_stations=-1, lr=5e-7):
     root_dir = '../../data/Delhi_labeled.pkl'
     img_transform = transforms.ToTensor()
-    if train_stations > 0:
-        stations = getAllStations(root_dir)
-        holdout = stations[train_stations:]
-    else:
-        holdout = ['Shadipur', 'North_Campus', 'R_K_Puram', 'Sector116', 'Sirifort', 'Patparganj', 'CRRI_MTR_Rd', 'Sector125', 
-                   'Major_Dhyan_Chand_National_Stadium', 'Aya_Nagar', 'NSIT_Dwarka', 'Sri_Aurobindo_Marg', 'Bawana', 'Loni', 
-                   'Sector1', 'Narela', 'Dwarka_Sector_8', 'Mundka', 'Sanjay_Nagar', 'ITO', 'Jahangirpuri', 'Alipur', 'Ashok_Vihar', 
-                   'Sonia_Vihar', 'New_Collectorate', 'Okhla_Phase2', 'Pusa_IMD']
+    holdout = ['Shadipur', 'North_Campus', 'R_K_Puram', 'Sector116', 'Sirifort', 'Patparganj', 'CRRI_MTR_Rd', 'Sector125', 
+               'Major_Dhyan_Chand_National_Stadium', 'Aya_Nagar', 'NSIT_Dwarka', 'Sri_Aurobindo_Marg', 'Bawana', 'Loni', 
+               'Sector1', 'Narela', 'Dwarka_Sector_8', 'Mundka', 'Sanjay_Nagar', 'ITO', 'Jahangirpuri', 'Alipur', 'Ashok_Vihar', 
+               'Sonia_Vihar', 'New_Collectorate', 'Okhla_Phase2', 'Pusa_IMD']
     test_stations = getTestStations(root_dir, holdout=holdout)
-    batch_size = 32
+    batch_size = 128
     fig_size = 1000
     scale_factor = 0.95
     
@@ -50,11 +46,11 @@ def run_supervised_SimCLR(requires_meteo=False, train_stations=-1, lr=5e-7):
     # Initialize the data for CNN
     if requires_meteo:
         train_loader, train_loader_for_test, test_loader, transformed_meteo_dim = initializeCNNdata(root_dir, img_transform, batch_size, holdout=holdout, 
-                                                                                            requires_meteo=True, rt_model=rt_model, 
+                                                                                            train_stations=train_stations, requires_meteo=True, rt_model=rt_model, 
                                                                                             rf_train=y_train_pred_rf, rf_test=y_test_pred_rf)
     else:
         train_loader, train_loader_for_test, test_loader = initializeCNNdata(root_dir, img_transform, batch_size, 
-                                                                     holdout=holdout, requires_meteo=False)
+                                                                     holdout=holdout, train_stations=train_stations, requires_meteo=False)
     # Visualize the Random Forest predictions
     if requires_meteo:
         Rsquared, pvalue, Rsquared_pearson, pvalue_pearson = eval_stat(y_train_pred_rf, PM_train)
@@ -65,29 +61,33 @@ def run_supervised_SimCLR(requires_meteo=False, train_stations=-1, lr=5e-7):
         plot_result(y_test_pred_rf, PM_test, Rsquared, pvalue, Rsquared_pearson, pvalue_pearson, plot_label='test', save=True, 
                     fig_name='PM2.5_RF_test_train_stations_' + str(train_stations), lower_bound=0, upper_bound=fig_size, spatial_R=spatial_R_rf)
         spatialRPlot('dodgerblue', station_avg_rf, station_avg_rf_pred, plot_label='test', save=True, 
-                     fig_name='PM2.5_RF_test_spatial_R_train_stations' + str(train_stations))
+                     fig_name='PM2.5_RF_test_spatial_R_train_stations_' + str(train_stations))
         
     # Run supervised learning
     max_epochs = 500
     early_stopping_threshold = 20
-    early_stopping_metric = 'test_loss'
-    encoder_name = 'resnet50_SimCLR'
-    # ssl_path = './model_checkpoint/encoder_params_resnet18_spatiotemporal_Delhi.pkl'
-    ssl_path = '../../model_checkpoint/encoder_params_resnet50_spatiotemporal_Delhi_SimCLR.pkl'
+    early_stopping_metric = 'spatial_rmse'
+    encoder_name = 'resnet18_SimCLR'
+    ssl_path = '../../model_checkpoint/encoder_params_resnet18_spatiotemporal_Delhi_SimCLR.pkl'
+    # ssl_path = '../../model_checkpoint/encoder_params_resnet50_spatiotemporal_Delhi_SimCLR.pkl'
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     if requires_meteo:
-        model = ResNet50_SimCLR_SimSiam_joint_meteo(ssl_path, transformed_meteo_dim).to(device)
+        model = ResNet_SimCLR_SimSiam_joint_meteo(ssl_path, transformed_meteo_dim, backbone='resnet18').to(device)
     else:
-        model = ResNet50_SimCLR_SimSiam_no_meteo(ssl_path).to(device)
+        model = ResNet_SimCLR_SimSiam_no_meteo(ssl_path, backbone='resnet18').to(device)
         
     # optimizer = optim.SGD(model.parameters(), lr=lr, momentum=0.9, weight_decay=0.1)
     optimizer = optim.Adam(model.parameters(), lr=lr, betas=(0.01, 0.01), weight_decay=0.1)
+    gamma = 0.005
+    exp_func = lambda epoch: np.exp(-gamma*epoch)
+    scheduler = optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=exp_func)
     if requires_meteo:
         y_train_pred, y_train, y_test_pred, y_test, loss_train, loss_test, spatial_R_test, spatial_rmse_test, current_epochs = run_with_regular_loss(
             model, optimizer, device, train_loader, train_loader_for_test, test_loader, 
             encoder_name=encoder_name, 
             max_epochs=max_epochs, 
             save_model=False, 
+            lr_scheduler=scheduler, 
             early_stopping_threshold=early_stopping_threshold, 
             early_stopping_metric=early_stopping_metric, 
             requires_meteo=True, 
@@ -100,6 +100,7 @@ def run_supervised_SimCLR(requires_meteo=False, train_stations=-1, lr=5e-7):
             encoder_name=encoder_name, 
             max_epochs=max_epochs, 
             save_model=False, 
+            lr_scheduler=scheduler, 
             early_stopping_threshold=early_stopping_threshold, 
             early_stopping_metric=early_stopping_metric, 
             requires_meteo=False, 
@@ -122,16 +123,18 @@ def run_supervised_SimCLR(requires_meteo=False, train_stations=-1, lr=5e-7):
                  y_test_pred, y_test, station_avg_pred, station_avg, spatial_R, spatial_R_test, spatial_rmse_test, train_stations=train_stations)
     else:
         plot_all(current_epochs, encoder_name, fig_size, loss_train, loss_test, y_train_pred, y_train, 
-                 y_test_pred, y_test, station_avg_pred, station_avg, spatial_R)
+                 y_test_pred, y_test, station_avg_pred, station_avg, spatial_R, train_stations=train_stations)
 
 def cli_main():
-    stations_num = [1, 2, 5, 10, 20, 40]
-    lrs_no_meteo = [1e-4, 2e-5, 2e-5, 2e-5, 3e-5, 5e-6]
-    lrs_meteo = [1e-6, 2e-7, 2e-7, 2e-7, 3e-7, 5e-8]
+    stations_num = [1, 5, 10, 15, 20, 24]
+    lrs_no_meteo = [1e-3, 2e-4, 1.5e-4, 1e-4, 6e-5, 4e-5]   # ResNet18
+    lrs_meteo = [4e-6, 3.5e-6, 3e-6, 2.5e-6, 2e-6, 1.5e-6]   # ResNet18
+#     lrs_no_meteo = [8e-5, 3e-5, 8e-6, 5e-6, 3.5e-6, 2e-6]   # ResNet50
+#     lrs_meteo = [3e-6, 4e-7, 4e-7, 4e-7, 6e-7, 5e-7]   # ResNet50
 
     for i in range(len(stations_num)):
-        run_supervised_SimCLR(requires_meteo=True, train_stations=stations_num[i], lr=lrs_meteo[i])
-        # run_supervised_SimCLR(requires_meteo=False, train_stations=stations_num[i], lr=lrs_no_meteo[i])
+        # run_supervised_SimCLR(requires_meteo=True, train_stations=stations_num[i], lr=lrs_meteo[i])
+        run_supervised_SimCLR(requires_meteo=False, train_stations=stations_num[i], lr=lrs_no_meteo[i])
 
 if __name__ == '__main__':
     cli_main()

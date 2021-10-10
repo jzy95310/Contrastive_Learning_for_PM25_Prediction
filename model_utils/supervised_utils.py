@@ -132,29 +132,26 @@ def spatialRPlot(color, y_test_ref,  y_test_ref_pred_raw, plot_label = 'test', s
 # Image dataset used for downstream supervised task with regular MSE loss
 class MyPM25Dataset(Dataset):
 
-    def __init__(self, root_dir, crop_dim=0, img_transform=None, mode='train', holdout=None, train_stations=-1, 
-                 requires_meteo=False, meteo_model=None, rf_train=None, rf_test=None):
+    def __init__(self, root_dir, holdout, crop_dim=0, img_transform=None, mode='train', train_stations=-1, 
+                 requires_meteo=False, meteo_model=None, rf_train=None, rf_test=None, scale_by_mean=False):
         """
         Args:
             root_dir (string): Directory of PM2.5 data
+            holdout (list of station index): Must be specified if mode is 'test'
             crop_dim (int, optional): Dimension for cropping
             mode ('train' or 'test', optional): Whether the dataset is for
                 training or testing
             img_transform (callable, optional): Optional transform to be applied
                 on an image.
-            holdout (list of station index): Must be specified if mode is 'test'
             train_stations (integer): Number of stations to be used for training
             requires_meteo (boolean): Whether to use meteorological features or not
             meteo_model (optional): RandomTreesEmbedding model
             rf_train (optional): Train predictions using Random Forest model
             rf_test (optional): Test predictions using Random Forest model
+            scale_by_mean (optional): Boolean, if True, then all PM2.5 values are shifted by the global mean PM2.5
         """
         if mode not in ['train', 'test']:
             raise Exception('Mode must be either \'train\' or \'test\'.')
-        if mode == 'test' and (not holdout and train_stations == -1):
-            raise Exception('Must specify the holdout test set or the number of training stations')
-        if holdout and train_stations != -1:
-            raise Exception('Either specify holdout stations or specify the number of training stations.')
         if requires_meteo and not meteo_model:
             raise Exception('If meteo features are required, you must pass in a model to transform the meteo features.')
         if requires_meteo:
@@ -172,46 +169,48 @@ class MyPM25Dataset(Dataset):
         self.requires_meteo = requires_meteo
         self.y_train_pred_rf = rf_train
         self.y_test_pred_rf = rf_test
+        self.scale_by_mean = scale_by_mean
         
         # Private variables
         self.img_train_PM25, self.img_test_PM25 = [], []
         self.PM25_train, self.PM25_test = [], []
-        self.train_stations_seen = set()
+        self.train_set = set()
+        self.global_mean = 0
         
         self.meteo_raw = []
         self.meteo_raw_train, self.meteo_raw_test = [], []
-        self.meteo_transformed_train, self.meteo_transformed_test = [], []
-        
+        self.meteo_transformed_train, self.meteo_transformed_test = [], []      
         
         # Load images, meteo features and targets for PM2.5 data
         with open(root_dir, "rb") as fp:
             images = pkl.load(fp)
+            for data_point in tqdm(images, position=0, leave=True):
+                if data_point['Station_index'] not in self.holdout:
+                    self.train_set.add(data_point['Station_index'])
+                self.global_mean += data_point['PM25']
+            self.train_set = sorted(list(self.train_set))
+            self.global_mean /= len(images)
+            
             if self.train_stations != -1:
-                for data_point in tqdm(images, position=0, leave=True):
-                    if data_point['Station_index'] not in self.train_stations_seen:
-                        self.train_stations_seen.add(data_point['Station_index'])
-                    if len(self.train_stations_seen) <= self.train_stations:
-                        self.img_train_PM25.append(data_point['Image'])
-                        self.PM25_train.append(data_point['PM25'])
-                        if self.requires_meteo:
-                            self.meteo_raw_train.append(data_point['Meteo'].values)
+                self.train_set = self.train_set[:train_stations]
+
+            for data_point in tqdm(images, position=0, leave=True):
+                if data_point['Station_index'] in self.train_set:
+                    self.img_train_PM25.append(data_point['Image'])
+                    if self.scale_by_mean:
+                        self.PM25_train.append(data_point['PM25'] - self.global_mean)
                     else:
-                        self.img_test_PM25.append(data_point['Image'])
-                        self.PM25_test.append(data_point['PM25'])
-                        if self.requires_meteo:
-                            self.meteo_raw_test.append(data_point['Meteo'].values)
-            else:
-                for data_point in tqdm(images, position=0, leave=True):
-                    if data_point['Station_index'] not in holdout:
-                        self.img_train_PM25.append(data_point['Image'])
                         self.PM25_train.append(data_point['PM25'])
-                        if self.requires_meteo:
-                            self.meteo_raw_train.append(data_point['Meteo'].values)
+                    if self.requires_meteo:
+                        self.meteo_raw_train.append(data_point['Meteo'].values)
+                elif data_point['Station_index'] in self.holdout:
+                    self.img_test_PM25.append(data_point['Image'])
+                    if self.scale_by_mean:
+                        self.PM25_test.append(data_point['PM25'] - self.global_mean)
                     else:
-                        self.img_test_PM25.append(data_point['Image'])
                         self.PM25_test.append(data_point['PM25'])
-                        if self.requires_meteo:
-                            self.meteo_raw_test.append(data_point['Meteo'].values)
+                    if self.requires_meteo:
+                        self.meteo_raw_test.append(data_point['Meteo'].values)
         
         if self.requires_meteo:
             # Transform the meteo features to increase the representation power
@@ -267,29 +266,26 @@ class MyPM25Dataset(Dataset):
 # Temporally sorted image dataset used for downstream supervised task with weighted MSE loss
 class MyPM25DatasetSorted(Dataset):
 
-    def __init__(self, root_dir, img_transform=None, mode='train', holdout=None, train_stations=-1, 
-                 requires_meteo=False, meteo_model=None, rf_train=None, rf_test=None):
+    def __init__(self, root_dir, holdout, img_transform=None, mode='train', train_stations=-1, 
+                 requires_meteo=False, meteo_model=None, rf_train=None, rf_test=None, scale_by_mean=False):
         """
         Args:
             root_dir (string): Directory of PM2.5 data
+            holdout (list of station index): Must be specified if mode is 'test'
             mode ('train' or 'test', optional): Whether the dataset is for
                 training or testing
             img_transform (callable, optional): Optional transform to be applied
                 on an image.
             target_transform (boolean, optional): If true, then normalize y
-            holdout (list of station index): Must be specified if mode is 'test'
             train_stations (integer): Number of stations to be used for training
             requires_meteo (boolean): Whether to use meteorological features or not
             meteo_model (optional): RandomTreesEmbedding model
             rf_train (optional): Train predictions using Random Forest model
             rf_test (optional): Test predictions using Random Forest model
+            scale_by_mean (optional): Boolean, if True, then all PM2.5 values are shifted by the global mean PM2.5
         """
         if mode not in ['train', 'test']:
             raise Exception('Mode must be either \'train\' or \'test\'.')
-        if mode == 'test' and (not holdout and train_stations == -1):
-            raise Exception('Must specify the holdout test set or the number of training stations')
-        if holdout and train_stations != -1:
-            raise Exception('Either specify holdout stations or specify the number of training stations.')
         if requires_meteo and not meteo_model:
             raise Exception('If meteo features are required, you must pass in a model to transform the meteo features.')
         if requires_meteo:
@@ -306,73 +302,63 @@ class MyPM25DatasetSorted(Dataset):
         self.requires_meteo = requires_meteo
         self.y_train_pred_rf = rf_train
         self.y_test_pred_rf = rf_test
+        self.scale_by_mean = scale_by_mean
         
         # Private variables
         self.img_train_PM25, self.img_test_PM25 = [], []
         self.PM25_train, self.PM25_test = [], []
-        self.train_stations_seen = set()
+        self.train_set = set()
+        self.global_mean = 0
         
         self.meteo_raw = []
         self.meteo_raw_train, self.meteo_raw_test = [], []
         self.meteo_transformed_train, self.meteo_transformed_test = [], []
         
-        
         # Load images, meteo features and targets for PM2.5 data
         with open(root_dir, "rb") as fp:
             # Sort the images based on their timestamp
             images = pkl.load(fp)
+            for data_point in tqdm(images, position=0, leave=True):
+                if data_point['Station_index'] not in self.holdout:
+                    self.train_set.add(data_point['Station_index'])
+                self.global_mean += data_point['PM25']
+            self.train_set = sorted(list(self.train_set))
+            self.global_mean /= len(images)
+            
             images.sort(key=lambda x: x['Meteo'].name)
             cur_timestamp_train, cur_timestamp_test = None, None
             if self.train_stations != -1:
-                for data_point in images:
-                    if data_point['Station_index'] not in self.train_stations_seen:
-                        self.train_stations_seen.add(data_point['Station_index'])
-                    if len(self.train_stations_seen) <= self.train_stations:
-                        if data_point['Meteo'].name != cur_timestamp_train:
-                            cur_timestamp_train = data_point['Meteo'].name
-                            self.img_train_PM25.append([])
-                            self.PM25_train.append([])
-                            if self.requires_meteo:
-                                self.meteo_raw_train.append([])
-                        self.img_train_PM25[-1].append(data_point['Image'])
-                        self.PM25_train[-1].append(data_point['PM25'])
+                self.train_set = self.train_set[:train_stations]
+                
+            for data_point in tqdm(images, position=0, leave=True):
+                if data_point['Station_index'] in self.train_set:
+                    if data_point['Meteo'].name != cur_timestamp_train:
+                        cur_timestamp_train = data_point['Meteo'].name
+                        self.img_train_PM25.append([])
+                        self.PM25_train.append([])
                         if self.requires_meteo:
-                            self.meteo_raw_train[-1].append(data_point['Meteo'].values)
+                            self.meteo_raw_train.append([])
+                    self.img_train_PM25[-1].append(data_point['Image'])
+                    if self.scale_by_mean:
+                        self.PM25_train[-1].append(data_point['PM25'] - self.global_mean)
                     else:
-                        if data_point['Meteo'].name != cur_timestamp_test:
-                            cur_timestamp_test = data_point['Meteo'].name
-                            self.img_test_PM25.append([])
-                            self.PM25_test.append([])
-                            if self.requires_meteo:
-                                self.meteo_raw_test.append([])
-                        self.img_test_PM25[-1].append(data_point['Image'])
-                        self.PM25_test[-1].append(data_point['PM25'])
-                        if self.requires_meteo:
-                            self.meteo_raw_test[-1].append(data_point['Meteo'].values)
-            else:
-                for data_point in tqdm(images, position=0, leave=True):
-                    if data_point['Station_index'] not in holdout:
-                        if data_point['Meteo'].name != cur_timestamp_train:
-                            cur_timestamp_train = data_point['Meteo'].name
-                            self.img_train_PM25.append([])
-                            self.PM25_train.append([])
-                            if self.requires_meteo:
-                                self.meteo_raw_train.append([])
-                        self.img_train_PM25[-1].append(data_point['Image'])
                         self.PM25_train[-1].append(data_point['PM25'])
+                    if self.requires_meteo:
+                        self.meteo_raw_train[-1].append(data_point['Meteo'].values)
+                elif data_point['Station_index'] in self.holdout:
+                    if data_point['Meteo'].name != cur_timestamp_test:
+                        cur_timestamp_test = data_point['Meteo'].name
+                        self.img_test_PM25.append([])
+                        self.PM25_test.append([])
                         if self.requires_meteo:
-                            self.meteo_raw_train[-1].append(data_point['Meteo'].values)
+                            self.meteo_raw_test.append([])
+                    self.img_test_PM25[-1].append(data_point['Image'])
+                    if self.scale_by_mean:
+                        self.PM25_test[-1].append(data_point['PM25'] - self.global_mean)
                     else:
-                        if data_point['Meteo'].name != cur_timestamp_test:
-                            cur_timestamp_test = data_point['Meteo'].name
-                            self.img_test_PM25.append([])
-                            self.PM25_test.append([])
-                            if self.requires_meteo:
-                                self.meteo_raw_test.append([])
-                        self.img_test_PM25[-1].append(data_point['Image'])
                         self.PM25_test[-1].append(data_point['PM25'])
-                        if self.requires_meteo:
-                            self.meteo_raw_test[-1].append(data_point['Meteo'].values)
+                    if self.requires_meteo:
+                        self.meteo_raw_test[-1].append(data_point['Meteo'].values)
         
         # Perform data augmentation if transform function is specified
         if self.img_transform:
@@ -525,19 +511,19 @@ def predictWithRFSorted(rf_model, meteo_transformed_train, meteo_transformed_tes
     return y_train_pred_rf, y_test_pred_rf
 
 # Initialize the data loader for CNN models with regular MSE loss
-def initializeCNNdata(root_dir, img_transform, batch_size, holdout=None, train_stations=-1, requires_meteo=False, rt_model=None, rf_train=None, rf_test=None):
+def initializeCNNdata(root_dir, img_transform, batch_size, holdout=None, train_stations=-1, requires_meteo=False, rt_model=None, rf_train=None, rf_test=None, scale_by_mean=False):
     if requires_meteo:
         if (rt_model is None) or (rf_train is None) or (rf_test is None):
             raise Exception("Must specify rt_model, rf_train and rf_test.")
-        train_dataset_PM25 = MyPM25Dataset(root_dir=root_dir, img_transform=img_transform, mode='train', holdout=holdout, 
-                                           train_stations=train_stations, requires_meteo=requires_meteo, meteo_model=rt_model, rf_train=rf_train)
-        test_dataset_PM25 = MyPM25Dataset(root_dir=root_dir, img_transform=img_transform, mode='test', holdout=holdout, 
-                                          train_stations=train_stations, requires_meteo=requires_meteo, meteo_model=rt_model, rf_test=rf_test)
+        train_dataset_PM25 = MyPM25Dataset(root_dir=root_dir, holdout=holdout, img_transform=img_transform, mode='train', 
+                                           train_stations=train_stations, requires_meteo=requires_meteo, meteo_model=rt_model, rf_train=rf_train, scale_by_mean=scale_by_mean)
+        test_dataset_PM25 = MyPM25Dataset(root_dir=root_dir, holdout=holdout, img_transform=img_transform, mode='test', 
+                                          train_stations=train_stations, requires_meteo=requires_meteo, meteo_model=rt_model, rf_test=rf_test, scale_by_mean=scale_by_mean)
     else:
-        train_dataset_PM25 = MyPM25Dataset(root_dir=root_dir, img_transform=img_transform, mode='train', 
-                                           holdout=holdout, train_stations=train_stations, requires_meteo=requires_meteo)
-        test_dataset_PM25 = MyPM25Dataset(root_dir=root_dir, img_transform=img_transform, mode='test', 
-                                          holdout=holdout, train_stations=train_stations, requires_meteo=requires_meteo)
+        train_dataset_PM25 = MyPM25Dataset(root_dir=root_dir, holdout=holdout, img_transform=img_transform, mode='train', 
+                                           train_stations=train_stations, requires_meteo=requires_meteo, scale_by_mean=scale_by_mean)
+        test_dataset_PM25 = MyPM25Dataset(root_dir=root_dir, holdout=holdout, img_transform=img_transform, mode='test', 
+                                          train_stations=train_stations, requires_meteo=requires_meteo, scale_by_mean=scale_by_mean)
     train_dataloader_PM25 = DataLoader(train_dataset_PM25, batch_size=batch_size, shuffle=True, num_workers=2, worker_init_fn=np.random.seed(2020))
     train_dataloader_PM25_for_test = DataLoader(train_dataset_PM25, batch_size=batch_size, shuffle=False)
     test_dataloader_PM25 = DataLoader(test_dataset_PM25, batch_size=batch_size, shuffle=False)
@@ -548,19 +534,19 @@ def initializeCNNdata(root_dir, img_transform, batch_size, holdout=None, train_s
         return train_dataloader_PM25, train_dataloader_PM25_for_test, test_dataloader_PM25
 
 # Initialize the data loader for CNN models with weighted MSE loss
-def initializeSortedCNNdata(root_dir, img_transform, batch_size, holdout=None, train_stations=-1, requires_meteo=False, rt_model=None, rf_train=None, rf_test=None):
+def initializeSortedCNNdata(root_dir, img_transform, batch_size, holdout=None, train_stations=-1, requires_meteo=False, rt_model=None, rf_train=None, rf_test=None, scale_by_mean=False):
     if requires_meteo:
         if (rt_model is None) or (rf_train is None) or (rf_test is None):
             raise Exception("Must specify rt_model, rf_train and rf_test.")
         train_dataset_PM25 = MyPM25DatasetSorted(root_dir=root_dir, img_transform=img_transform, mode='train', holdout=holdout, 
-                                                 train_stations=train_stations, requires_meteo=requires_meteo, meteo_model=rt_model, rf_train=rf_train)
+                                                 train_stations=train_stations, requires_meteo=requires_meteo, meteo_model=rt_model, rf_train=rf_train, scale_by_mean=scale_by_mean)
         test_dataset_PM25 = MyPM25DatasetSorted(root_dir=root_dir, img_transform=img_transform, mode='test', holdout=holdout, 
-                                                train_stations=train_stations, requires_meteo=requires_meteo, meteo_model=rt_model, rf_test=rf_test)
+                                                train_stations=train_stations, requires_meteo=requires_meteo, meteo_model=rt_model, rf_test=rf_test, scale_by_mean=scale_by_mean)
     else:
         train_dataset_PM25 = MyPM25DatasetSorted(root_dir=root_dir, img_transform=img_transform, mode='train', 
-                                                 holdout=holdout, train_stations=train_stations, requires_meteo=requires_meteo)
+                                                 holdout=holdout, train_stations=train_stations, requires_meteo=requires_meteo, scale_by_mean=scale_by_mean)
         test_dataset_PM25 = MyPM25DatasetSorted(root_dir=root_dir, img_transform=img_transform, mode='test', 
-                                                holdout=holdout, train_stations=train_stations, requires_meteo=requires_meteo)
+                                                holdout=holdout, train_stations=train_stations, requires_meteo=requires_meteo, scale_by_mean=scale_by_mean)
     train_dataloader_PM25 = DataLoader(train_dataset_PM25, batch_size=batch_size, shuffle=True, num_workers=2, worker_init_fn=np.random.seed(2020))
     train_dataloader_PM25_for_test = DataLoader(train_dataset_PM25, batch_size=batch_size, shuffle=False)
     test_dataloader_PM25 = DataLoader(test_dataset_PM25, batch_size=batch_size, shuffle=False)
@@ -571,10 +557,13 @@ def initializeSortedCNNdata(root_dir, img_transform, batch_size, holdout=None, t
         return train_dataloader_PM25, train_dataloader_PM25_for_test, test_dataloader_PM25
 
 # Get the all the station names for testing only
-def getTestStations(root_dir, holdout):
+def getTestStations(root_dir, holdout, sort=False):
     with open(root_dir, "rb") as fp:
+        images = pkl.load(fp)
+        if sort:
+            images.sort(key=lambda x: x['Meteo'].name)
         test_stations = []
-        for data_point in pkl.load(fp):
+        for data_point in images:
             if data_point['Station_index'] in holdout:
                 test_stations.append(data_point['Station_index'])
     return test_stations
@@ -612,68 +601,68 @@ def plot_all(current_epochs, encoder_name, fig_size, loss_train, loss_test, y_tr
     ax.set_title('Train and test loss of predicting ground-level PM2.5')
     ax.legend()
     if train_stations > 0:
-        savepdf(ax.figure, 'PM2.5_train_test_loss_' + encoder_name + '_self_supervision_train_stations_' + str(train_stations))
+        savepdf(ax.figure, 'PM2.5_train_test_loss_' + encoder_name + '_train_stations_' + str(train_stations))
     else:
-        savepdf(ax.figure, 'PM2.5_train_test_loss_' + encoder_name + '_self_supervision')
+        savepdf(ax.figure, 'PM2.5_train_test_loss_' + encoder_name)
     del fig, ax
     
     # Plot the spatial R and RMSE if applicable
-    if spatial_R_test:
-        plt.clf()
-        fig = plt.plot(figsize=(16, 16))
-        ax = plt.gca()
-        epochs = range(current_epochs)
-        ax.plot(epochs, spatial_R_test, color='r', linewidth=0.5, label='Test spatial R')
-        ax.set_xlabel('Epochs')
-        ax.set_ylabel('Spatial R')
-        ax.set_title('Test spatial R of predicting ground-level PM2.5')
-        ax.legend()
-        if train_stations > 0:
-            savepdf(ax.figure, 'PM2.5_test_spatial_R_' + encoder_name + '_self_supervision_train_stations_' + str(train_stations))
-        else:
-            savepdf(ax.figure, 'PM2.5_test_spatial_R_' + encoder_name + '_self_supervision')
-        del fig, ax
+#     if spatial_R_test:
+#         plt.clf()
+#         fig = plt.plot(figsize=(16, 16))
+#         ax = plt.gca()
+#         epochs = range(current_epochs)
+#         ax.plot(epochs, spatial_R_test, color='r', linewidth=0.5, label='Test spatial R')
+#         ax.set_xlabel('Epochs')
+#         ax.set_ylabel('Spatial R')
+#         ax.set_title('Test spatial R of predicting ground-level PM2.5')
+#         ax.legend()
+#         if train_stations > 0:
+#             savepdf(ax.figure, 'PM2.5_test_spatial_R_' + encoder_name + '_self_supervision_train_stations_' + str(train_stations))
+#         else:
+#             savepdf(ax.figure, 'PM2.5_test_spatial_R_' + encoder_name + '_self_supervision')
+#         del fig, ax
     
-    if spatial_rmse_test:
-        plt.clf()
-        fig = plt.plot(figsize=(16, 16))
-        ax = plt.gca()
-        epochs = range(current_epochs)
-        ax.plot(epochs, spatial_rmse_test, color='r', linewidth=0.5, label='Test spatial RMSE')
-        ax.set_xlabel('Epochs')
-        ax.set_ylabel('Spatial RMSE')
-        ax.set_title('Test spatial RMSE of predicting ground-level PM2.5')
-        ax.legend()
-        if train_stations > 0:
-            savepdf(ax.figure, 'PM2.5_test_spatial_RMSE_' + encoder_name + '_self_supervision_train_stations_' + str(train_stations))
-        else:
-            savepdf(ax.figure, 'PM2.5_test_spatial_RMSE_' + encoder_name + '_self_supervision')
-        del fig, ax
+#     if spatial_rmse_test:
+#         plt.clf()
+#         fig = plt.plot(figsize=(16, 16))
+#         ax = plt.gca()
+#         epochs = range(current_epochs)
+#         ax.plot(epochs, spatial_rmse_test, color='r', linewidth=0.5, label='Test spatial RMSE')
+#         ax.set_xlabel('Epochs')
+#         ax.set_ylabel('Spatial RMSE')
+#         ax.set_title('Test spatial RMSE of predicting ground-level PM2.5')
+#         ax.legend()
+#         if train_stations > 0:
+#             savepdf(ax.figure, 'PM2.5_test_spatial_RMSE_' + encoder_name + '_self_supervision_train_stations_' + str(train_stations))
+#         else:
+#             savepdf(ax.figure, 'PM2.5_test_spatial_RMSE_' + encoder_name + '_self_supervision')
+#         del fig, ax
     
     # Plot and save the train set predictions
     y_train_pred, y_train = np.squeeze(y_train_pred), np.squeeze(y_train)
     Rsquared, pvalue, Rsquared_pearson, pvalue_pearson = eval_stat(y_train_pred, y_train)
     if train_stations > 0:
         plot_result(y_train_pred, y_train, Rsquared, pvalue, Rsquared_pearson, pvalue_pearson, plot_label='train', save=True, 
-                    fig_name='PM2.5_self_supervision_train_' + encoder_name + '_train_stations_' + str(train_stations), lower_bound=0, upper_bound=fig_size)
+                    fig_name='PM2.5_train_' + encoder_name + '_train_stations_' + str(train_stations), lower_bound=0, upper_bound=fig_size)
     else:
         plot_result(y_train_pred, y_train, Rsquared, pvalue, Rsquared_pearson, pvalue_pearson, plot_label='train', save=True, 
-                    fig_name='PM2.5_self_supervision_train_' + encoder_name, lower_bound=0, upper_bound=fig_size)
+                    fig_name='PM2.5_train_' + encoder_name, lower_bound=0, upper_bound=fig_size)
     
     # Plot and save the test set predictions
     y_test_pred, y_test = np.squeeze(y_test_pred), np.squeeze(y_test)
     Rsquared, pvalue, Rsquared_pearson, pvalue_pearson = eval_stat(y_test_pred, y_test)
     if train_stations > 0:
         plot_result(y_test_pred, y_test, Rsquared, pvalue, Rsquared_pearson, pvalue_pearson, plot_label='test', save=True, 
-                    fig_name='PM2.5_self_supervision_test_' + encoder_name + '_train_stations_' + str(train_stations), lower_bound=0, upper_bound=fig_size, spatial_R=spatial_R)
+                    fig_name='PM2.5_test_' + encoder_name + '_train_stations_' + str(train_stations), lower_bound=0, upper_bound=fig_size, spatial_R=spatial_R)
     else:
         plot_result(y_test_pred, y_test, Rsquared, pvalue, Rsquared_pearson, pvalue_pearson, plot_label='test', save=True, 
-                    fig_name='PM2.5_self_supervision_test_' + encoder_name, lower_bound=0, upper_bound=fig_size, spatial_R=spatial_R)
+                    fig_name='PM2.5_test_' + encoder_name, lower_bound=0, upper_bound=fig_size, spatial_R=spatial_R)
     
-    # Plot and save the spatial R predictions
+    # Plot and save the spatial predictions
     if train_stations > 0:
         spatialRPlot('dodgerblue', station_avg, station_avg_pred, plot_label='test', save=True, 
-                     fig_name='PM2.5_self_supervision_test_spatial_R_' + encoder_name + '_train_stations_' + str(train_stations))
+                     fig_name='PM2.5_test_spatial_' + encoder_name + '_train_stations_' + str(train_stations))
     else:
         spatialRPlot('dodgerblue', station_avg, station_avg_pred, plot_label='test', save=True, 
-                     fig_name='PM2.5_self_supervision_test_spatial_R_' + encoder_name)
+                     fig_name='PM2.5_test_spatial_' + encoder_name)
