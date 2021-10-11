@@ -94,7 +94,7 @@ def plot_result(y_train_pred, y_train, Rsquared, pvalue, Rsquared_pearson, pvalu
     return
 
 # To plot the spatial R and RMSE for the predicted and true PM2.5 along with the calculated statistics
-def spatialRPlot(color, y_test_ref,  y_test_ref_pred_raw, plot_label = 'test', save=False, fig_name=""):
+def spatialRPlot(color, y_test_ref,  y_test_ref_pred_raw, plot_label = 'test', save=False, fig_name="", line_range=[50, 150]):
     Rsquared, pvalue, Rsquared_pearson, pvalue_pearson = eval_stat(y_test_ref_pred_raw, y_test_ref)
     
     y_train_pred_mlpr,y_train, Rsquared, pvalue, Rsquared_pearson, pvalue_pearson = y_test_ref_pred_raw, y_test_ref, Rsquared, pvalue, Rsquared_pearson, pvalue_pearson
@@ -103,7 +103,7 @@ def spatialRPlot(color, y_test_ref,  y_test_ref_pred_raw, plot_label = 'test', s
     my_prediction = y_train_pred_mlpr
     fig, ax = plt.subplots(figsize = (8,8))
     ax.scatter(y_train, my_prediction, color = color,alpha =1, edgecolors='navy',  s = 100)
-    ax.plot([50, 150], [50, 150], 'k--', lw=4)
+    ax.plot(line_range, line_range, 'k--', lw=4)
     ax.set_xlabel('True $PM_{2.5}$ ($\mu $g m$^{-3}$)', size = 25)
     ax.set_ylabel('Predicted $PM_{2.5}$ ($\mu $g m$^{-3}$)', size = 25)
     ax.tick_params(labelsize = 25)
@@ -588,7 +588,8 @@ def calculateSpatial(y_test_pred, y_test, test_stations):
 
 # Create all applicable plots
 def plot_all(current_epochs, encoder_name, fig_size, loss_train, loss_test, y_train_pred, y_train, y_test_pred, y_test, 
-             station_avg_pred, station_avg, spatial_R, spatial_R_test=None, spatial_rmse_test=None, train_stations=-1):
+             station_avg_pred, station_avg, spatial_R, spatial_R_test=None, spatial_rmse_test=None, train_stations=-1, 
+             line_range=[50, 150]):
     # Plot and save the train and test loss over epochs
     plt.clf()
     fig = plt.plot(figsize=(16, 16))
@@ -662,7 +663,7 @@ def plot_all(current_epochs, encoder_name, fig_size, loss_train, loss_test, y_tr
     # Plot and save the spatial predictions
     if train_stations > 0:
         spatialRPlot('dodgerblue', station_avg, station_avg_pred, plot_label='test', save=True, 
-                     fig_name='PM2.5_test_spatial_' + encoder_name + '_train_stations_' + str(train_stations))
+                     fig_name='PM2.5_test_spatial_' + encoder_name + '_train_stations_' + str(train_stations), line_range=line_range)
     else:
         spatialRPlot('dodgerblue', station_avg, station_avg_pred, plot_label='test', save=True, 
-                     fig_name='PM2.5_test_spatial_' + encoder_name)
+                     fig_name='PM2.5_test_spatial_' + encoder_name, line_range=line_range)
