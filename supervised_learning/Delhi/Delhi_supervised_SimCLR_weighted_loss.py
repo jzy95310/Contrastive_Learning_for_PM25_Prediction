@@ -36,6 +36,7 @@ def run_supervised_SimCLR(requires_meteo=False, train_stations=-1, lr=5e-7):
     fig_size = 1000
     scale_factor = 0.95
     spatial_factor = 1.0
+    scaler = None
     
     # Build Random Trees Embedding and Random Forest Model
     if requires_meteo:
@@ -50,8 +51,8 @@ def run_supervised_SimCLR(requires_meteo=False, train_stations=-1, lr=5e-7):
                                                                                                           train_stations=train_stations, requires_meteo=True, rt_model=rt_model, 
                                                                                                           rf_train=y_train_pred_rf, rf_test=y_test_pred_rf)
     else:
-        train_loader, train_loader_for_test, test_loader = initializeSortedCNNdata(root_dir, img_transform, batch_size, 
-                                                                                   holdout=holdout, train_stations=train_stations, requires_meteo=False)
+        train_loader, train_loader_for_test, test_loader, scaler = initializeSortedCNNdata(root_dir, img_transform, batch_size, 
+                                                                                   holdout=holdout, train_stations=train_stations, requires_meteo=False, normalized=False)
     
     # Flatten the true and predicted PM2.5 array
     if requires_meteo:
@@ -93,8 +94,8 @@ def run_supervised_SimCLR(requires_meteo=False, train_stations=-1, lr=5e-7):
     else:
         model = ResNet_SimCLR_SimSiam_no_meteo(ssl_path, backbone='resnet18').to(device)
         
-    # optimizer = optim.SGD(model.parameters(), lr=lr, momentum=0.9, weight_decay=0.1)
-    optimizer = optim.Adam(model.parameters(), lr=lr, betas=(0.01, 0.01), weight_decay=0.1)
+    optimizer = optim.SGD(model.parameters(), lr=lr, momentum=0.9, weight_decay=0.1)
+    # optimizer = optim.Adam(model.parameters(), lr=lr, betas=(0.01, 0.01), weight_decay=0.1)
     gamma = 0.005
     exp_func = lambda epoch: np.exp(-gamma*epoch)
     scheduler = optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=exp_func)
@@ -122,8 +123,13 @@ def run_supervised_SimCLR(requires_meteo=False, train_stations=-1, lr=5e-7):
             early_stopping_threshold=early_stopping_threshold, 
             early_stopping_metric=early_stopping_metric, 
             requires_meteo=False, 
-            test_stations=test_stations
+            test_stations=test_stations, 
+            scaler=scaler
         )
+    
+    if scaler is not None:
+        y_train_pred, y_train = scaler.inverse_transform(y_train_pred), scaler.inverse_transform(y_train)
+        y_test_pred, y_test = scaler.inverse_transform(y_test_pred), scaler.inverse_transform(y_test)
     
     # Calculate spatial Pearson R
     spatial_R, spatial_rmse, station_avg_pred, station_avg = calculateSpatial(y_test_pred, y_test, test_stations)

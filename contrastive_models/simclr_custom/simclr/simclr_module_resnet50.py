@@ -132,7 +132,7 @@ class SimCLR(pl.LightningModule):
         elif self.arch == 'resnet50':
             backbone = resnet50
 
-        return backbone(first_conv=self.first_conv, maxpool1=self.maxpool1, return_all_feature_maps=False)
+        return backbone(first_conv=self.first_conv, maxpool1=self.maxpool1, return_all_feature_maps=False, pretrained=False)
 
     def forward(self, x):
         # bolts resnet returns a list

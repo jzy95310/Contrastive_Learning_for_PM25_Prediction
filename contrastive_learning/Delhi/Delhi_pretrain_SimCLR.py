@@ -27,10 +27,10 @@ def cli_main():
     val_dataloader_SSL = DataLoader(val_dataset_SSL, batch_size=1, num_workers=11, shuffle=False)
     
     # SimCLR Model
-    simclr_model = SimCLR(gpus=1, batch_size=256, num_samples=train_size, lr=lr, optimizer='adam', arch='resnet18', hidden_mlp=512)
+    simclr_model = SimCLR(gpus=1, batch_size=256, num_samples=train_size, lr=lr, optimizer='lars', arch='resnet50', hidden_mlp=2048)
     
     # Training
-    max_epochs = 500   # If not specified, the default training_epochs is 1000
+    max_epochs = 250   # If not specified, the default training_epochs is 1000
     bar = ProgressBar(refresh_rate=500)
 #     checkpoint_callback = ModelCheckpoint(
 #         filepath='./model_checkpoint/Intermediate_checkpoints/{epoch:02d}-{val_loss:.2f}',
@@ -47,7 +47,7 @@ def cli_main():
     
     # Save encoder parameters
     simclr_encoder = simclr_model.encoder
-    torch.save(simclr_encoder.state_dict(), '../../model_checkpoint/encoder_params_resnet18_spatiotemporal_Delhi_SimCLR.pkl')
+    torch.save(simclr_encoder.state_dict(), '../../model_checkpoint/encoder_params_resnet50_spatiotemporal_Delhi_SimCLR.pkl')
 
 if __name__ == '__main__':
     cli_main()

@@ -131,6 +131,7 @@ class SpatiotemporalTransform(object):
         self.transform = transforms.Compose([
             transforms.ToPILImage(),
 #             transforms.RandomResizedCrop(size=self.input_height),
+            transforms.CenterCrop(size=self.input_height), 
 #             transforms.RandomHorizontalFlip(),
             transforms.ToTensor(),
         ])

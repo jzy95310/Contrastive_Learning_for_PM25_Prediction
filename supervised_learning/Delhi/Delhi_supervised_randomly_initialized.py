@@ -32,9 +32,10 @@ def run_supervised_randomly_initialized(requires_meteo=False, train_stations=-1,
                'Sector1', 'Narela', 'Dwarka_Sector_8', 'Mundka', 'Sanjay_Nagar', 'ITO', 'Jahangirpuri', 'Alipur', 'Ashok_Vihar', 
                'Sonia_Vihar', 'New_Collectorate', 'Okhla_Phase2', 'Pusa_IMD']
     test_stations = getTestStations(root_dir, holdout=holdout)
-    batch_size = 128
+    batch_size = 8
     fig_size = 1000
     scale_factor = 0.95
+    scaler = None
     
     # Build Random Trees Embedding and Random Forest Model
     if requires_meteo:
@@ -49,8 +50,8 @@ def run_supervised_randomly_initialized(requires_meteo=False, train_stations=-1,
                                                                                             train_stations=train_stations, requires_meteo=True, rt_model=rt_model, 
                                                                                             rf_train=y_train_pred_rf, rf_test=y_test_pred_rf)
     else:
-        train_loader, train_loader_for_test, test_loader = initializeCNNdata(root_dir, img_transform, batch_size, 
-                                                                     train_stations=train_stations, holdout=holdout, requires_meteo=False)
+        train_loader, train_loader_for_test, test_loader, scaler = initializeCNNdata(root_dir, img_transform, batch_size, 
+                                                                     train_stations=train_stations, holdout=holdout, requires_meteo=False, normalized=False)
     # Visualize the Random Forest predictions
     if requires_meteo:
         Rsquared, pvalue, Rsquared_pearson, pvalue_pearson = eval_stat(y_train_pred_rf, PM_train)
@@ -67,15 +68,15 @@ def run_supervised_randomly_initialized(requires_meteo=False, train_stations=-1,
     max_epochs = 500
     early_stopping_threshold = 20
     early_stopping_metric = 'spatial_rmse'
-    encoder_name = 'resnet18_random_initialization'
+    encoder_name = 'resnet50_random_initialization'
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     if requires_meteo:
-        model = ResNet_ImageNet_pretrained_joint_meteo(transformed_meteo_dim, pretrained=False, backbone='resnet18').to(device)
+        model = ResNet_ImageNet_pretrained_joint_meteo(transformed_meteo_dim, pretrained=False, backbone='resnet50').to(device)
     else:
-        model = ResNet_ImageNet_pretrained_no_meteo(pretrained=False, backbone='resnet18').to(device)
+        model = ResNet_ImageNet_pretrained_no_meteo(pretrained=False, backbone='resnet50').to(device)
         
-    # optimizer = optim.SGD(model.parameters(), lr=lr, momentum=0.9, weight_decay=0.1)
-    optimizer = optim.Adam(model.parameters(), lr=lr, betas=(0.01, 0.01), weight_decay=0.1)
+    optimizer = optim.SGD(model.parameters(), lr=lr, momentum=0.75, weight_decay=0.1)
+    # optimizer = optim.Adam(model.parameters(), lr=lr, betas=(0.01, 0.01), weight_decay=0.1)
     gamma = 0.005
     exp_func = lambda epoch: np.exp(-gamma*epoch)
     scheduler = optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=exp_func)
@@ -102,8 +103,13 @@ def run_supervised_randomly_initialized(requires_meteo=False, train_stations=-1,
             early_stopping_threshold=early_stopping_threshold, 
             early_stopping_metric=early_stopping_metric, 
             requires_meteo=False, 
-            test_stations=test_stations
+            test_stations=test_stations, 
+            scaler=scaler
         )
+    
+    if scaler is not None:
+        y_train_pred, y_train = scaler.inverse_transform(y_train_pred), scaler.inverse_transform(y_train)
+        y_test_pred, y_test = scaler.inverse_transform(y_test_pred), scaler.inverse_transform(y_test)
     
     # Calculate spatial Pearson R
     spatial_R, spatial_rmse, station_avg_pred, station_avg = calculateSpatial(y_test_pred, y_test, test_stations)
@@ -125,10 +131,8 @@ def run_supervised_randomly_initialized(requires_meteo=False, train_stations=-1,
 
 def cli_main():
     stations_num = [1, 5, 10, 15, 20, 24]
-    lrs_no_meteo = [3e-4, 4e-5, 1.5e-5, 8e-6, 5e-6, 3e-6]   # ResNet18
-    lrs_meteo = [5e-6, 4.5e-6, 4e-6, 3.5e-6, 3e-6, 2.5e-6]   # ResNet18
-#     lrs_no_meteo = [1e-5, 3e-6, 3e-6, 3e-7, 2.5e-7, 2e-7]   # ResNet50
-#     lrs_meteo = [1e-6, 8e-8, 8e-8, 4e-8, 6e-8, 6e-8]   # ResNet50
+    lrs_no_meteo = [1.5e-7, 5e-8, 4e-8, 3e-8, 1.5e-8, 1e-8]   # ResNet50
+    lrs_meteo = []   # ResNet50
 
     for i in range(len(stations_num)):
         # run_supervised_randomly_initialized(requires_meteo=True, train_stations=stations_num[i], lr=lrs_meteo[i])

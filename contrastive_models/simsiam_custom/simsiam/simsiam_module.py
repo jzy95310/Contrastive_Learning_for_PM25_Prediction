@@ -140,7 +140,7 @@ class SimSiam(pl.LightningModule):
         elif self.arch == 'resnet50':
             backbone = resnet50
 
-        encoder = backbone(first_conv=self.first_conv, maxpool1=self.maxpool1, return_all_feature_maps=False)
+        encoder = backbone(first_conv=self.first_conv, maxpool1=self.maxpool1, return_all_feature_maps=False, pretrained=False)
         self.online_network = SiameseArm(
             encoder, input_dim=self.hidden_mlp, hidden_size=self.hidden_mlp, output_dim=self.feat_dim
         )

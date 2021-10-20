@@ -6,7 +6,8 @@ import copy
 from supervised_utils import calculateSpatial
 
 # Train function with regular MSE loss
-def train_with_regular_loss(model, device, train_loader, criterion, optimizer, epoch, requires_meteo=False, scale_factor=-1, global_mean=0):       
+def train_with_regular_loss(model, device, train_loader, criterion, optimizer, epoch, requires_meteo=False, scale_factor=-1, 
+                            residual_factor=1):       
 #     model.eval()
 #     for m in model.modules():
 #         if isinstance(m, torch.nn.Dropout):
@@ -20,7 +21,7 @@ def train_with_regular_loss(model, device, train_loader, criterion, optimizer, e
             output = torch.squeeze(model(img, meteo))
             if len(output.shape) == 0:
                 continue
-            prediction = output + scale_factor * target_pred.float()
+            prediction = residual_factor * output + scale_factor * target_pred.float()
             if scale_factor != -1:
                 loss = criterion(prediction, target.float())   # residue = y - y_pred_rf
             else:
@@ -28,7 +29,7 @@ def train_with_regular_loss(model, device, train_loader, criterion, optimizer, e
             loss.backward()
             optimizer.step()
             if scale_factor != -1:
-                y_pred = torch.cat((y_pred, output + scale_factor * target_pred.float()))
+                y_pred = torch.cat((y_pred, residual_factor * output + scale_factor * target_pred.float()))
             else:
                 y_pred = torch.cat((y_pred, output + target_pred.float()))
             y_true = torch.cat((y_true, target))
@@ -42,14 +43,15 @@ def train_with_regular_loss(model, device, train_loader, criterion, optimizer, e
             loss = criterion(output, target.float())
             loss.backward()
             optimizer.step()
-            y_pred = torch.cat((y_pred, output + global_mean))
-            y_true = torch.cat((y_true, target + global_mean))
+            y_pred = torch.cat((y_pred, output))
+            y_true = torch.cat((y_true, target))
         
     train_loss = criterion(y_pred, y_true)
     print('Train Epoch: {} Loss: {:.6f}'.format(epoch, train_loss))
 
 # Test function with regular MSE loss
-def test_with_regular_loss(model, device, test_loader, criterion, use_train=False, requires_meteo=False, scale_factor=-1, test_stations=None, global_mean=0):  
+def test_with_regular_loss(model, device, test_loader, criterion, use_train=False, requires_meteo=False, scale_factor=-1,
+                           residual_factor=1, test_stations=None, scaler=None):  
     model.eval()
     y_pred = torch.empty(0).to(device)
     y_true = torch.empty(0).to(device)
@@ -61,7 +63,7 @@ def test_with_regular_loss(model, device, test_loader, criterion, use_train=Fals
                 if len(output.shape) == 0:
                     continue
                 if scale_factor != -1:
-                    y_pred = torch.cat((y_pred, output + scale_factor * target_pred))   # output is the predicted residue, y_pred is the predicted PM2.5
+                    y_pred = torch.cat((y_pred, residual_factor * output + scale_factor * target_pred))   # output is the predicted residue, y_pred is the predicted PM2.5
                 else:
                     y_pred = torch.cat((y_pred, output + target_pred))
                 y_true = torch.cat((y_true, target))   # y_true is the true PM2.5
@@ -72,12 +74,15 @@ def test_with_regular_loss(model, device, test_loader, criterion, use_train=Fals
                 output = torch.squeeze(model(img))
                 if len(output.shape) == 0:
                     continue
-                y_pred = torch.cat((y_pred, output + global_mean))
-                y_true = torch.cat((y_true, target + global_mean))
+                y_pred = torch.cat((y_pred, output))
+                y_true = torch.cat((y_true, target))
     
     test_loss = criterion(y_pred, y_true)
     if test_stations:
-        spatial_R, spatial_rmse, _, _ = calculateSpatial(y_pred.cpu().numpy(), y_true.cpu().numpy(), test_stations)
+        if scaler is not None:
+            spatial_R, spatial_rmse, _, _ = calculateSpatial(scaler.inverse_transform(y_pred.cpu().numpy()), scaler.inverse_transform(y_true.cpu().numpy()), test_stations)
+        else:
+            spatial_R, spatial_rmse, _, _ = calculateSpatial(y_pred.cpu().numpy(), y_true.cpu().numpy(), test_stations)
     
     if use_train:
         print('Train set Loss: {:.4f}'.format(test_loss))
@@ -93,8 +98,8 @@ def test_with_regular_loss(model, device, test_loader, criterion, use_train=Fals
 
 # Run training and testing with regular MSE loss
 def run_with_regular_loss(model, optimizer, device, train_loader, train_loader_for_test, test_loader, encoder_name, max_epochs=500, save_model=False, lr_scheduler=None, 
-                          early_stopping_threshold=-1, early_stopping_metric='test_loss', requires_meteo=False, scale_factor=-1, test_stations=None, global_mean=0):
-    assert early_stopping_metric in ['test_loss', 'spatial_r', 'spatial_rmse'], "Early stopping metric should be one of the [test_loss, spatial_r, spatial_rmse]."
+                          early_stopping_threshold=-1, early_stopping_metric='test_loss', requires_meteo=False, scale_factor=-1, residual_factor=1, test_stations=None, scaler=None):
+    assert early_stopping_metric in [None, 'test_loss', 'spatial_r', 'spatial_rmse'], "Early stopping metric should be one of the [test_loss, spatial_r, spatial_rmse]."
     
     criterion_train = nn.MSELoss(reduction='mean')
     criterion_test = nn.MSELoss(reduction='mean')
@@ -106,11 +111,11 @@ def run_with_regular_loss(model, optimizer, device, train_loader, train_loader_f
     loss_test_smallest, spatial_rmse_test_smallest, spatial_R_test_largest, early_stopping_count = 1e9, 1e9, 0, 0
     current_epochs = max_epochs + 0
     for epoch in range(1, max_epochs + 1):
-        train_with_regular_loss(model, device, train_loader, criterion_train, optimizer, epoch, requires_meteo=requires_meteo, scale_factor=scale_factor, global_mean=global_mean)
+        train_with_regular_loss(model, device, train_loader, criterion_train, optimizer, epoch, requires_meteo=requires_meteo, scale_factor=scale_factor, residual_factor=residual_factor)
         if lr_scheduler is not None:
             lr_scheduler.step()
-        y_train_pred, y_train, loss_train = test_with_regular_loss(model, device, train_loader_for_test, criterion_test, use_train=True, requires_meteo=requires_meteo, scale_factor=scale_factor, global_mean=global_mean)
-        y_test_pred, y_test, loss_test, spatial_R_test, spatial_rmse_test = test_with_regular_loss(model, device, test_loader, criterion_test, use_train=False, requires_meteo=requires_meteo, scale_factor=scale_factor, test_stations=test_stations, global_mean=global_mean)
+        y_train_pred, y_train, loss_train = test_with_regular_loss(model, device, train_loader_for_test, criterion_test, use_train=True, requires_meteo=requires_meteo, scale_factor=scale_factor, residual_factor=residual_factor)
+        y_test_pred, y_test, loss_test, spatial_R_test, spatial_rmse_test = test_with_regular_loss(model, device, test_loader, criterion_test, use_train=False, requires_meteo=requires_meteo, scale_factor=scale_factor, residual_factor=residual_factor, test_stations=test_stations, scaler=scaler)
         loss_train_arr.append(loss_train)
         loss_test_arr.append(loss_test)
         spatial_rmse_test_arr.append(spatial_rmse_test)
@@ -143,7 +148,7 @@ def run_with_regular_loss(model, optimizer, device, train_loader, train_loader_f
                     current_epochs = epoch + 0
                     print('Early stopping criterion reached. Exiting...')
                     break
-        else:
+        elif early_stopping_metric == 'spatial_r':
             if spatial_R_test > spatial_R_test_largest:
                 early_stopping_count = 0
                 spatial_R_test_largest = spatial_R_test + 0
@@ -157,6 +162,11 @@ def run_with_regular_loss(model, optimizer, device, train_loader, train_loader_f
                     current_epochs = epoch + 0
                     print('Early stopping criterion reached. Exiting...')
                     break
+        else:
+            y_train_pred_final = copy.copy(y_train_pred)
+            y_test_pred_final = copy.copy(y_test_pred)
+            y_train_final = copy.copy(y_train)
+            y_test_final = copy.copy(y_test)
 
     if (save_model):
         if requires_meteo:
@@ -170,7 +180,8 @@ def run_with_regular_loss(model, optimizer, device, train_loader, train_loader_f
         return y_train_pred_final.cpu().numpy(), y_train_final.cpu().numpy(), y_test_pred_final.cpu().numpy(), y_test_final.cpu().numpy(), loss_train_arr, loss_test_arr, current_epochs
 
 # Train function with weighted MSE loss
-def train_with_weighted_loss(model, device, train_loader, criterion, optimizer, epoch, requires_meteo=False, scale_factor=-1, spatial_factor=0, global_mean=0):       
+def train_with_weighted_loss(model, device, train_loader, criterion, optimizer, epoch, requires_meteo=False, scale_factor=-1, 
+                             residual_factor=1, spatial_factor=0):       
 #     model.eval()
 #     for m in model.modules():
 #         if isinstance(m, torch.nn.Dropout):
@@ -189,7 +200,7 @@ def train_with_weighted_loss(model, device, train_loader, criterion, optimizer, 
             if len(output.shape) == 0:
                 continue
             if scale_factor != -1:
-                prediction = output + scale_factor * target_pred.float()    # residue = y - scale * y_pred_rf
+                prediction = residual_factor * output + scale_factor * target_pred.float()    # residue = y - scale * y_pred_rf
                 loss_ind = criterion(prediction, target.float())   
                 loss_spatial = criterion(prediction - torch.mean(prediction), target.float() - torch.mean(target.float()))
                 loss = loss_ind + spatial_factor * loss_spatial
@@ -219,14 +230,15 @@ def train_with_weighted_loss(model, device, train_loader, criterion, optimizer, 
             loss = loss_ind + spatial_factor * loss_spatial
             loss.backward()
             optimizer.step()
-            y_pred = torch.cat((y_pred, output + global_mean))
-            y_true = torch.cat((y_true, target + global_mean))
+            y_pred = torch.cat((y_pred, output))
+            y_true = torch.cat((y_true, target))
         
     train_loss = criterion(y_pred, y_true)
     print('Train Epoch: {} Loss: {:.6f}'.format(epoch, train_loss))
 
 # Test function with weighted MSE loss
-def test_with_weighted_loss(model, device, test_loader, criterion, use_train=False, requires_meteo=False, scale_factor=-1, test_stations=None, global_mean=0):  
+def test_with_weighted_loss(model, device, test_loader, criterion, use_train=False, requires_meteo=False, scale_factor=-1, 
+                            residual_factor=1, test_stations=None):  
     model.eval()
     y_pred = torch.empty(0).to(device)
     y_true = torch.empty(0).to(device)
@@ -242,7 +254,7 @@ def test_with_weighted_loss(model, device, test_loader, criterion, use_train=Fal
                 if (len(output.shape) == 0):
                     output = torch.unsqueeze(output, 0)
                 if scale_factor != -1:
-                    y_pred = torch.cat((y_pred, output + scale_factor * target_pred))   # output is the predicted residue, y_pred is the predicted PM2.5
+                    y_pred = torch.cat((y_pred, residual_factor * output + scale_factor * target_pred))   # output is the predicted residue, y_pred is the predicted PM2.5
                 else:
                     y_pred = torch.cat((y_pred, output + target_pred))
                 y_true = torch.cat((y_true, target))   # y_true is the true PM2.5
@@ -257,12 +269,15 @@ def test_with_weighted_loss(model, device, test_loader, criterion, use_train=Fal
                 output = torch.squeeze(model(img))
                 if (len(output.shape) == 0):
                     output = torch.unsqueeze(output, 0)
-                y_pred = torch.cat((y_pred, output + global_mean))
-                y_true = torch.cat((y_true, target + global_mean))
+                y_pred = torch.cat((y_pred, output))
+                y_true = torch.cat((y_true, target))
     
     test_loss = criterion(y_pred, y_true)
     if test_stations:
-        spatial_R, spatial_rmse, _, _ = calculateSpatial(y_pred.cpu().numpy(), y_true.cpu().numpy(), test_stations)
+        if scaler is not None:
+            spatial_R, spatial_rmse, _, _ = calculateSpatial(scaler.inverse_transform(y_pred.cpu().numpy()), scaler.inverse_transform(y_true.cpu().numpy()), test_stations)
+        else:
+            spatial_R, spatial_rmse, _, _ = calculateSpatial(y_pred.cpu().numpy(), y_true.cpu().numpy(), test_stations)
     
     if use_train:
         print('Train set Loss: {:.4f}'.format(test_loss))
@@ -278,8 +293,8 @@ def test_with_weighted_loss(model, device, test_loader, criterion, use_train=Fal
 
 # Run training and testing with weighted MSE loss
 def run_with_weighted_loss(model, optimizer, device, train_loader, train_loader_for_test, test_loader, encoder_name, max_epochs=500, save_model=False, lr_scheduler=None, 
-                           early_stopping_threshold=-1, early_stopping_metric='test_loss', requires_meteo=False, scale_factor=-1, spatial_factor=0, test_stations=None, global_mean=0):
-    assert early_stopping_metric in ['test_loss', 'spatial_r', 'spatial_rmse'], "Early stopping metric should be one of the [test_loss, spatial_r, spatial_rmse]."
+                           early_stopping_threshold=-1, early_stopping_metric='test_loss', requires_meteo=False, scale_factor=-1, residual_factor=1, spatial_factor=0, test_stations=None, scaler=None):
+    assert early_stopping_metric in [None, 'test_loss', 'spatial_r', 'spatial_rmse'], "Early stopping metric should be one of the [test_loss, spatial_r, spatial_rmse]."
     
     criterion_train = nn.MSELoss(reduction='mean')
     criterion_test = nn.MSELoss(reduction='mean')
@@ -291,11 +306,11 @@ def run_with_weighted_loss(model, optimizer, device, train_loader, train_loader_
     loss_test_smallest, spatial_rmse_test_smallest, spatial_R_test_largest, early_stopping_count = 1e9, 1e9, 0, 0
     current_epochs = max_epochs + 0
     for epoch in range(1, max_epochs + 1):
-        train_with_weighted_loss(model, device, train_loader, criterion_train, optimizer, epoch, requires_meteo=requires_meteo, scale_factor=scale_factor, spatial_factor=spatial_factor, global_mean=global_mean)
+        train_with_weighted_loss(model, device, train_loader, criterion_train, optimizer, epoch, requires_meteo=requires_meteo, scale_factor=scale_factor, residual_factor=residual_factor, spatial_factor=spatial_factor)
         if lr_scheduler is not None:
             lr_scheduler.step()
-        y_train_pred, y_train, loss_train = test_with_weighted_loss(model, device, train_loader_for_test, criterion_test, use_train=True, requires_meteo=requires_meteo, scale_factor=scale_factor, global_mean=global_mean)
-        y_test_pred, y_test, loss_test, spatial_R_test, spatial_rmse_test = test_with_weighted_loss(model, device, test_loader, criterion_test, use_train=False, requires_meteo=requires_meteo, scale_factor=scale_factor, test_stations=test_stations, global_mean=global_mean)
+        y_train_pred, y_train, loss_train = test_with_weighted_loss(model, device, train_loader_for_test, criterion_test, use_train=True, requires_meteo=requires_meteo, scale_factor=scale_factor, residual_factor=residual_factor)
+        y_test_pred, y_test, loss_test, spatial_R_test, spatial_rmse_test = test_with_weighted_loss(model, device, test_loader, criterion_test, use_train=False, requires_meteo=requires_meteo, scale_factor=scale_factor, residual_factor=residual_factor, test_stations=test_stations, scaler=scaler)
         loss_train_arr.append(loss_train)
         loss_test_arr.append(loss_test)
         spatial_rmse_test_arr.append(spatial_rmse_test)
@@ -328,7 +343,7 @@ def run_with_weighted_loss(model, optimizer, device, train_loader, train_loader_
                     current_epochs = epoch + 0
                     print('Early stopping criterion reached. Exiting...')
                     break
-        else:
+        elif early_stopping_metric == 'spatial_r':
             if spatial_R_test > spatial_R_test_largest:
                 early_stopping_count = 0
                 spatial_R_test_largest = spatial_R_test + 0
@@ -342,6 +357,11 @@ def run_with_weighted_loss(model, optimizer, device, train_loader, train_loader_
                     current_epochs = epoch + 0
                     print('Early stopping criterion reached. Exiting...')
                     break
+        else:
+            y_train_pred_final = copy.copy(y_train_pred)
+            y_test_pred_final = copy.copy(y_test_pred)
+            y_train_final = copy.copy(y_train)
+            y_test_final = copy.copy(y_test)
 
     if (save_model):
         if requires_meteo:
