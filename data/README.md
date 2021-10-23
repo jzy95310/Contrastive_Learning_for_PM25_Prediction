@@ -1,6 +1,6 @@
 # Satellite Image Data
 ## Data Format
-This directory should contain the satellite image data for different urban areas along with the corresponding PM2.5 and meteorological features. The size of the data is too large to be uploaded here. If you want to obtain the image data in order to replicate the experiment in the paper, please contact ziyang.jiang@duke.edu. Or if you want to conduct your own experiment, you can use your own satellite image data as long as it contains the image, the meteorological features, and the PM2.5 label as shown below:
+This directory should contain the satellite image data for different urban areas along with the corresponding PM2.5 values. The size of the data is too large to be uploaded here. If you want to obtain the image data in order to replicate the experiment in the paper, please contact ziyang.jiang@duke.edu. Or if you want to conduct your own experiment, you can use your own satellite image data as long as it contains the images and the PM2.5 labels and you know the corresponding geographical location and timestamps (used for contrastive learning as described in the next section) for each image as shown below.
 ```
 >> satellite_image_data[0]
 {'Image': array([[[251, 239, 221],
