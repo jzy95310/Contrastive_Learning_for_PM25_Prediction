@@ -26,11 +26,11 @@ class ResNet_ImageNet_pretrained_no_meteo(nn.Module):
         
         # Model initialization
         self.resnet_pretrained = resnet
-        self.fc1 = nn.Linear(self.resnet_pretrained.fc.out_features, 256)
+        self.fc1 = nn.Linear(self.resnet_pretrained.fc.out_features, 512)
         self.dropout = nn.Dropout(p=0.2)
         self.relu = nn.ReLU()
-        self.fc2 = nn.Linear(256, 128)
-        self.fc3 = nn.Linear(128, 1)
+        self.fc2 = nn.Linear(512, 512)
+        self.fc3 = nn.Linear(512, 1)
     
     
     def forward(self, image):
@@ -68,8 +68,8 @@ class ResNet_ImageNet_pretrained_joint_meteo(nn.Module):
         self.fc1 = nn.Linear(self.resnet_pretrained.fc.out_features+transformed_meteo_size, 512)
         self.dropout = nn.Dropout(p=0.2)
         self.relu = nn.ReLU()
-        self.fc2 = nn.Linear(512, 256)
-        self.fc3 = nn.Linear(256, 1)
+        self.fc2 = nn.Linear(512, 512)
+        self.fc3 = nn.Linear(512, 1)
     
     
     def forward(self, image, transformed_meteo_features):

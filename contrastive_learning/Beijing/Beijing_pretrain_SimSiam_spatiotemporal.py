@@ -4,7 +4,7 @@ sys.path.insert(0, '../../model_utils')
 sys.path.insert(0, '../../contrastive_models/simsiam_custom/simsiam')
 
 from torch.utils.data import DataLoader
-from contrastive_utils import MySSLImageDataset, SpatiotemporalTransform
+from contrastive_utils import MySCLImageDataset, SpatiotemporalTransform
 for _ in range(2):
     try:
         import pytorch_lightning as pl
@@ -16,9 +16,9 @@ for _ in range(2):
 
 def cli_main():
     input_height = 100
-    train_dataset_SSL = MySSLImageDataset(root_dir='../../data/LA_labeled_grouped_by_date_SimCLR_SimSiam.pkl', mode='train',
+    train_dataset_SSL = MySCLImageDataset(root_dir='../../data/Beijing_labeled_grouped_by_date_SimCLR_SimSiam.pkl', mode='train',
                                       transform=SpatiotemporalTransform(input_height=input_height), batch_size=256)
-    val_dataset_SSL = MySSLImageDataset(root_dir='../../data/LA_labeled_grouped_by_date_SimCLR_SimSiam.pkl', mode='val', 
+    val_dataset_SSL = MySCLImageDataset(root_dir='../../data/Beijing_labeled_grouped_by_date_SimCLR_SimSiam.pkl', mode='val', 
                                     transform=SpatiotemporalTransform(input_height=input_height), batch_size=256, train_val_ratio=0.75)
     train_size = len(train_dataset_SSL)
     
@@ -47,7 +47,7 @@ def cli_main():
     
     # Save encoder parameters
     simsiam_encoder = simsiam_model.online_network.encoder
-    torch.save(simsiam_encoder.state_dict(), '../../model_checkpoint/encoder_params_resnet50_spatiotemporal_LA_SimSiam.pkl')
+    torch.save(simsiam_encoder.state_dict(), '../../model_checkpoint/encoder_params_resnet50_spatiotemporal_with_aug_Beijing_SimSiam.pkl')
 
 if __name__ == '__main__':
     cli_main()

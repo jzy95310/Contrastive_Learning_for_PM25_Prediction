@@ -4,30 +4,31 @@ sys.path.insert(0, '../../model_utils')
 sys.path.insert(0, '../../contrastive_models/simclr_custom/simclr')
 
 from torch.utils.data import DataLoader
-from contrastive_utils import MySSLImageDataset, SpatiotemporalTransform
+from contrastive_utils import MyCLImageDataset
 for _ in range(2):
     try:
         import pytorch_lightning as pl
         from pytorch_lightning.callbacks.progress import ProgressBar
         from pytorch_lightning.callbacks import EarlyStopping
         from simclr_module_resnet50 import SimCLR
+        from simclr_transforms import SimCLREvalDataTransform, SimCLRTrainDataTransform
     except Exception as err:
         pass
 
 def cli_main():
     input_height = 100
-    train_dataset_SSL = MySSLImageDataset(root_dir='../../data/Delhi_labeled_grouped_by_date_SimCLR_SimSiam.pkl', mode='train',
-                                      transform=SpatiotemporalTransform(input_height=input_height), batch_size=256)
-    val_dataset_SSL = MySSLImageDataset(root_dir='../../data/Delhi_labeled_grouped_by_date_SimCLR_SimSiam.pkl', mode='val', 
-                                    transform=SpatiotemporalTransform(input_height=input_height), batch_size=256, train_val_ratio=0.75)
+    train_dataset_SSL = MyCLImageDataset(root_dir='../../data/Delhi_labeled.pkl', mode='train',
+                                      transform=SimCLRTrainDataTransform(input_height=input_height))
+    val_dataset_SSL = MyCLImageDataset(root_dir='../../data/Delhi_labeled.pkl', mode='val', 
+                                    transform=SimCLREvalDataTransform(input_height=input_height), train_val_ratio=0.75)
     train_size = len(train_dataset_SSL)
     
     lr = 1e-4
-    train_dataloader_SSL = DataLoader(train_dataset_SSL, batch_size=1, num_workers=11, shuffle=True)
-    val_dataloader_SSL = DataLoader(val_dataset_SSL, batch_size=1, num_workers=11, shuffle=False)
+    train_dataloader_SSL = DataLoader(train_dataset_SSL, batch_size=32, num_workers=11, shuffle=True)
+    val_dataloader_SSL = DataLoader(val_dataset_SSL, batch_size=32, num_workers=11, shuffle=False)
     
     # SimCLR Model
-    simclr_model = SimCLR(gpus=1, batch_size=256, num_samples=train_size, lr=lr, optimizer='lars', arch='resnet50', hidden_mlp=2048)
+    simclr_model = SimCLR(gpus=1, batch_size=32, num_samples=train_size, lr=lr, optimizer='lars', arch='resnet50', hidden_mlp=2048)
     
     # Training
     max_epochs = 250   # If not specified, the default training_epochs is 1000
@@ -47,7 +48,7 @@ def cli_main():
     
     # Save encoder parameters
     simclr_encoder = simclr_model.encoder
-    torch.save(simclr_encoder.state_dict(), '../../model_checkpoint/encoder_params_resnet50_spatiotemporal_Delhi_SimCLR.pkl')
+    torch.save(simclr_encoder.state_dict(), '../../model_checkpoint/encoder_params_resnet50_regular_Delhi_SimCLR.pkl')
 
 if __name__ == '__main__':
     cli_main()

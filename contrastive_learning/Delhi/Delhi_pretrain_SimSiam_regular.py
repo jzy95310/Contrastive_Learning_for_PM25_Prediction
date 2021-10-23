@@ -1,33 +1,35 @@
 import sys
 import torch
 sys.path.insert(0, '../../model_utils')
+sys.path.insert(0, '../../contrastive_models/simclr_custom/simclr')
 sys.path.insert(0, '../../contrastive_models/simsiam_custom/simsiam')
 
 from torch.utils.data import DataLoader
-from contrastive_utils import MySSLImageDataset, SpatiotemporalTransform
+from contrastive_utils import MyCLImageDataset
 for _ in range(2):
     try:
         import pytorch_lightning as pl
         from pytorch_lightning.callbacks.progress import ProgressBar
         from pytorch_lightning.callbacks import EarlyStopping
         from simsiam_module import SimSiam
+        from simclr_transforms import SimCLREvalDataTransform, SimCLRTrainDataTransform
     except Exception as err:
         pass
 
 def cli_main():
     input_height = 100
-    train_dataset_SSL = MySSLImageDataset(root_dir='../../data/Delhi_labeled_grouped_by_date_SimCLR_SimSiam.pkl', mode='train',
-                                      transform=SpatiotemporalTransform(input_height=input_height), batch_size=256)
-    val_dataset_SSL = MySSLImageDataset(root_dir='../../data/Delhi_labeled_grouped_by_date_SimCLR_SimSiam.pkl', mode='val', 
-                                    transform=SpatiotemporalTransform(input_height=input_height), batch_size=256, train_val_ratio=0.75)
+    train_dataset_SSL = MyCLImageDataset(root_dir='../../data/Delhi_labeled.pkl', mode='train',
+                                      transform=SimCLRTrainDataTransform(input_height=input_height))
+    val_dataset_SSL = MyCLImageDataset(root_dir='../../data/Delhi_labeled.pkl', mode='val', 
+                                    transform=SimCLREvalDataTransform(input_height=input_height), train_val_ratio=0.75)
     train_size = len(train_dataset_SSL)
     
     lr = 1e-4
-    train_dataloader_SSL = DataLoader(train_dataset_SSL, batch_size=1, num_workers=11, shuffle=True)
-    val_dataloader_SSL = DataLoader(val_dataset_SSL, batch_size=1, num_workers=11, shuffle=False)
+    train_dataloader_SSL = DataLoader(train_dataset_SSL, batch_size=32, num_workers=11, shuffle=True)
+    val_dataloader_SSL = DataLoader(val_dataset_SSL, batch_size=32, num_workers=11, shuffle=False)
     
     # SimSiam Model
-    simsiam_model = SimSiam(gpus=1, batch_size=256, num_samples=train_size, lr=lr, optimizer='sgd', arch='resnet50', hidden_mlp=2048)
+    simsiam_model = SimSiam(gpus=1, batch_size=32, num_samples=train_size, lr=lr, optimizer='sgd', arch='resnet50', hidden_mlp=2048)
     
     # Training
     max_epochs = 250   # If not specified, the default training_epochs is 1000
@@ -47,7 +49,7 @@ def cli_main():
     
     # Save encoder parameters
     simsiam_encoder = simsiam_model.online_network.encoder
-    torch.save(simsiam_encoder.state_dict(), '../../model_checkpoint/encoder_params_resnet50_spatiotemporal_Delhi_SimSiam.pkl')
+    torch.save(simsiam_encoder.state_dict(), '../../model_checkpoint/encoder_params_resnet50_regular_Delhi_SimSiam.pkl')
 
 if __name__ == '__main__':
     cli_main()

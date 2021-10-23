@@ -24,23 +24,20 @@ torch.cuda.manual_seed(2020)
 torch.cuda.manual_seed_all(2020)
 torch.backends.cudnn.deterministic = True
 
-def run_supervised_SimSiam(requires_meteo=False, train_stations=-1, lr=5e-7):
-    root_dir = '../../data/Delhi_labeled.pkl'
+def run_supervised_SimCLR(requires_meteo=False, train_stations=-1, lr=5e-7):
+    root_dir = '../../data/Beijing_labeled.pkl'
     img_transform = transforms.ToTensor()
-    holdout = ['Shadipur', 'North_Campus', 'R_K_Puram', 'Sector116', 'Sirifort', 'Patparganj', 'CRRI_MTR_Rd', 'Sector125', 
-               'Major_Dhyan_Chand_National_Stadium', 'Aya_Nagar', 'NSIT_Dwarka', 'Sri_Aurobindo_Marg', 'Bawana', 'Loni', 
-               'Sector1', 'Narela', 'Dwarka_Sector_8', 'Mundka', 'Sanjay_Nagar', 'ITO', 'Jahangirpuri', 'Alipur', 'Ashok_Vihar', 
-               'Sonia_Vihar', 'New_Collectorate', 'Okhla_Phase2', 'Pusa_IMD']
+    holdout = ['25', '26', '27', '28', '29', '30', '31', '32', '33', '34']
     test_stations = getTestStations(root_dir, holdout=holdout)
-    batch_size = 8
-    fig_size = 1000
+    batch_size = 4
+    fig_size = 500
     scale_factor = 0.95
     scaler = None
     
     # Build Random Trees Embedding and Random Forest Model
     if requires_meteo:
-        rt_dir = '../../rt_rf_checkpoint/rt_model_Delhi.pkl'
-        rf_dir = '../../rt_rf_checkpoint/ML_RF_singlemet_Delhi.pkl'
+        rt_dir = '../../rt_rf_checkpoint/rt_model_Beijing.pkl'
+        rf_dir = '../../rt_rf_checkpoint/ML_RF_singlemet_Beijing.pkl'
         rt_model, rf_model, meteo_transformed_train, PM_train, meteo_transformed_test, PM_test = loadRTandRFModel(root_dir, rt_dir, rf_dir, holdout)
         y_train_pred_rf, y_test_pred_rf = predictWithRF(rf_model, meteo_transformed_train, meteo_transformed_test)
     
@@ -68,16 +65,16 @@ def run_supervised_SimSiam(requires_meteo=False, train_stations=-1, lr=5e-7):
     max_epochs = 500
     early_stopping_threshold = 20
     early_stopping_metric = 'spatial_rmse'
-    encoder_name = 'resnet50_SimSiam'
-    # ssl_path = '../../model_checkpoint/encoder_params_resnet18_spatiotemporal_Delhi_SimSiam.pkl'
-    ssl_path = '../../model_checkpoint/encoder_params_resnet50_spatiotemporal_Delhi_SimSiam.pkl'
+    encoder_name = 'resnet50_SimCLR'
+    # ssl_path = '../../model_checkpoint/encoder_params_resnet18_spatiotemporal_Beijing_SimCLR.pkl'
+    ssl_path = '../../model_checkpoint/encoder_params_resnet50_regular_Beijing_SimCLR.pkl'
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     if requires_meteo:
         model = ResNet_SimCLR_SimSiam_joint_meteo(ssl_path, transformed_meteo_dim, backbone='resnet50').to(device)
     else:
         model = ResNet_SimCLR_SimSiam_no_meteo(ssl_path, backbone='resnet50').to(device)
         
-    optimizer = optim.SGD(model.parameters(), lr=lr, momentum=0.75, weight_decay=0.1)
+    optimizer = optim.SGD(model.parameters(), lr=lr, momentum=0.6, weight_decay=0.1)
     # optimizer = optim.Adam(model.parameters(), lr=lr, betas=(0.01, 0.01), weight_decay=0.1)
     gamma = 0.005
     exp_func = lambda epoch: np.exp(-gamma*epoch)
@@ -101,7 +98,7 @@ def run_supervised_SimSiam(requires_meteo=False, train_stations=-1, lr=5e-7):
             encoder_name=encoder_name, 
             max_epochs=max_epochs, 
             save_model=False, 
-            lr_scheduler=scheduler, 
+            # lr_scheduler=scheduler, 
             early_stopping_threshold=early_stopping_threshold, 
             early_stopping_metric=early_stopping_metric, 
             requires_meteo=False, 
@@ -118,27 +115,27 @@ def run_supervised_SimSiam(requires_meteo=False, train_stations=-1, lr=5e-7):
     
     # Save spatial statistics
     result_stats = {'RMSE': np.sqrt(metrics.mean_squared_error(y_test, y_test_pred)), 'Spatial_R': spatial_R, 'Spatial_RMSE': spatial_rmse}
-    result_path = './model_results/results_SimSiam.pkl'
+    result_path = './model_results/results_SimCLR_regular.pkl'
     os.makedirs(os.path.dirname(result_path), exist_ok=True)
     with open(result_path, 'ab') as fp:
         pkl.dump(result_stats, fp)
     
     # Visualize and save results
-    if requires_meteo:
-        plot_all(current_epochs, encoder_name, fig_size, loss_train, loss_test, y_train_pred, y_train, 
-                 y_test_pred, y_test, station_avg_pred, station_avg, spatial_R, spatial_R_test, spatial_rmse_test, train_stations=train_stations)
-    else:
-        plot_all(current_epochs, encoder_name, fig_size, loss_train, loss_test, y_train_pred, y_train, 
-                 y_test_pred, y_test, station_avg_pred, station_avg, spatial_R, train_stations=train_stations)
+#     if requires_meteo:
+#         plot_all(current_epochs, encoder_name, fig_size, loss_train, loss_test, y_train_pred, y_train, 
+#                  y_test_pred, y_test, station_avg_pred, station_avg, spatial_R, spatial_R_test, spatial_rmse_test, train_stations=train_stations, line_range=[0, 50])
+#     else:
+#         plot_all(current_epochs, encoder_name, fig_size, loss_train, loss_test, y_train_pred, y_train, 
+#                  y_test_pred, y_test, station_avg_pred, station_avg, spatial_R, train_stations=train_stations, line_range=[0, 100])
 
 def cli_main():
-    stations_num = [1, 5, 10, 15, 20, 24]
-    lrs_no_meteo = [1e-6, 3e-7, 1.5e-7, 1e-7, 7e-8, 5e-8]   # ResNet50
+    stations_num = [1, 5, 10, 15, 20, 25]
+    lrs_no_meteo = [2e-6, 1e-6, 8e-7, 5e-7, 4e-7, 2e-7]   # ResNet50
     lrs_meteo = []   # ResNet50
 
     for i in range(len(stations_num)):
-        # run_supervised_SimSiam(requires_meteo=True, train_stations=stations_num[i], lr=lrs_meteo[i])
-        run_supervised_SimSiam(requires_meteo=False, train_stations=stations_num[i], lr=lrs_no_meteo[i])
+        # run_supervised_SimCLR(requires_meteo=True, train_stations=stations_num[i], lr=lrs_meteo[i])
+        run_supervised_SimCLR(requires_meteo=False, train_stations=stations_num[i], lr=lrs_no_meteo[i])
 
 if __name__ == '__main__':
     cli_main()

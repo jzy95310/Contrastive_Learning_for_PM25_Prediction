@@ -13,9 +13,9 @@ from sklearn import metrics
 from cnn_models import ResNet_SimCLR_SimSiam_no_meteo, ResNet_SimCLR_SimSiam_joint_meteo
 from supervised_utils import eval_stat, plot_result, calculateSpatial, spatialRPlot, plot_all
 from supervised_utils import getTestStations
-from supervised_utils import loadRTandRFModelSorted, predictWithRFSorted
-from supervised_utils import initializeSortedCNNdata
-from train_test_utils import run_with_weighted_loss
+from supervised_utils import loadRTandRFModel, predictWithRF
+from supervised_utils import initializeCNNdata
+from train_test_utils import run_with_regular_loss
 
 # To make this notebook's output stable across runs
 np.random.seed(2020)
@@ -31,44 +31,27 @@ def run_supervised_SimSiam(requires_meteo=False, train_stations=-1, lr=5e-7):
                'Major_Dhyan_Chand_National_Stadium', 'Aya_Nagar', 'NSIT_Dwarka', 'Sri_Aurobindo_Marg', 'Bawana', 'Loni', 
                'Sector1', 'Narela', 'Dwarka_Sector_8', 'Mundka', 'Sanjay_Nagar', 'ITO', 'Jahangirpuri', 'Alipur', 'Ashok_Vihar', 
                'Sonia_Vihar', 'New_Collectorate', 'Okhla_Phase2', 'Pusa_IMD']
-    test_stations = getTestStations(root_dir, holdout=holdout, sort=True)
-    batch_size = 1    # Batch size must be set to 1!!
+    test_stations = getTestStations(root_dir, holdout=holdout)
+    batch_size = 8
     fig_size = 1000
     scale_factor = 0.95
-    spatial_factor = 1.0
     scaler = None
     
     # Build Random Trees Embedding and Random Forest Model
     if requires_meteo:
         rt_dir = '../../rt_rf_checkpoint/rt_model_Delhi.pkl'
         rf_dir = '../../rt_rf_checkpoint/ML_RF_singlemet_Delhi.pkl'
-        rt_model, rf_model, meteo_transformed_train, PM_train, meteo_transformed_test, PM_test = loadRTandRFModelSorted(root_dir, rt_dir, rf_dir, holdout)
-        y_train_pred_rf, y_test_pred_rf = predictWithRFSorted(rf_model, meteo_transformed_train, meteo_transformed_test)
+        rt_model, rf_model, meteo_transformed_train, PM_train, meteo_transformed_test, PM_test = loadRTandRFModel(root_dir, rt_dir, rf_dir, holdout)
+        y_train_pred_rf, y_test_pred_rf = predictWithRF(rf_model, meteo_transformed_train, meteo_transformed_test)
     
     # Initialize the data for CNN
     if requires_meteo:
-        train_loader, train_loader_for_test, test_loader, transformed_meteo_dim = initializeSortedCNNdata(root_dir, img_transform, batch_size, holdout=holdout, 
-                                                                                                          train_stations=train_stations, requires_meteo=True, rt_model=rt_model, 
-                                                                                                          rf_train=y_train_pred_rf, rf_test=y_test_pred_rf)
+        train_loader, train_loader_for_test, test_loader, transformed_meteo_dim = initializeCNNdata(root_dir, img_transform, batch_size, holdout=holdout, 
+                                                                                            train_stations=train_stations, requires_meteo=True, rt_model=rt_model, 
+                                                                                            rf_train=y_train_pred_rf, rf_test=y_test_pred_rf)
     else:
-        train_loader, train_loader_for_test, test_loader, scaler = initializeSortedCNNdata(root_dir, img_transform, batch_size, 
-                                                                                   holdout=holdout, train_stations=train_stations, requires_meteo=False, normalized=False)
-    
-    # Flatten the true and predicted PM2.5 array
-    if requires_meteo:
-        PM_train_tmp, y_train_pred_rf_tmp = np.empty(0), np.empty(0)
-        for i in range(len(PM_train)):
-            PM_train_tmp = np.concatenate((PM_train_tmp, np.array(PM_train[i])), axis=None)
-            y_train_pred_rf_tmp = np.concatenate((y_train_pred_rf_tmp, y_train_pred_rf[i]), axis=None)
-        PM_test_tmp, y_test_pred_rf_tmp = np.empty(0), np.empty(0)
-        for i in range(len(PM_test)):
-            PM_test_tmp = np.concatenate((PM_test_tmp, np.array(PM_test[i])), axis=None)
-            y_test_pred_rf_tmp = np.concatenate((y_test_pred_rf_tmp, y_test_pred_rf[i]), axis=None)
-
-        PM_train, y_train_pred_rf = copy.copy(PM_train_tmp), copy.copy(y_train_pred_rf_tmp)
-        PM_test, y_test_pred_rf = copy.copy(PM_test_tmp), copy.copy(y_test_pred_rf_tmp)
-        del PM_train_tmp, y_train_pred_rf_tmp, PM_test_tmp, y_test_pred_rf_tmp
-    
+        train_loader, train_loader_for_test, test_loader, scaler = initializeCNNdata(root_dir, img_transform, batch_size, 
+                                                                     holdout=holdout, train_stations=train_stations, requires_meteo=False, normalized=False)
     # Visualize the Random Forest predictions
     if requires_meteo:
         Rsquared, pvalue, Rsquared_pearson, pvalue_pearson = eval_stat(y_train_pred_rf, PM_train)
@@ -85,22 +68,22 @@ def run_supervised_SimSiam(requires_meteo=False, train_stations=-1, lr=5e-7):
     max_epochs = 500
     early_stopping_threshold = 20
     early_stopping_metric = 'spatial_rmse'
-    encoder_name = 'resnet18_SimSiam'
-    ssl_path = '../../model_checkpoint/encoder_params_resnet18_spatiotemporal_Delhi_SimSiam.pkl'
-    # ssl_path = '../../model_checkpoint/encoder_params_resnet50_spatiotemporal_Delhi_SimSiam.pkl'
+    encoder_name = 'resnet50_SimSiam'
+    # ssl_path = '../../model_checkpoint/encoder_params_resnet18_spatiotemporal_Delhi_SimSiam.pkl'
+    ssl_path = '../../model_checkpoint/encoder_params_resnet50_regular_Delhi_SimSiam.pkl'
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     if requires_meteo:
-        model = ResNet_SimCLR_SimSiam_joint_meteo(ssl_path, transformed_meteo_dim, backbone='resnet18').to(device)
+        model = ResNet_SimCLR_SimSiam_joint_meteo(ssl_path, transformed_meteo_dim, backbone='resnet50').to(device)
     else:
-        model = ResNet_SimCLR_SimSiam_no_meteo(ssl_path, backbone='resnet18').to(device)
+        model = ResNet_SimCLR_SimSiam_no_meteo(ssl_path, backbone='resnet50').to(device)
         
-    optimizer = optim.SGD(model.parameters(), lr=lr, momentum=0.9, weight_decay=0.1)
+    optimizer = optim.SGD(model.parameters(), lr=lr, momentum=0.75, weight_decay=0.1)
     # optimizer = optim.Adam(model.parameters(), lr=lr, betas=(0.01, 0.01), weight_decay=0.1)
     gamma = 0.005
     exp_func = lambda epoch: np.exp(-gamma*epoch)
     scheduler = optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=exp_func)
     if requires_meteo:
-        y_train_pred, y_train, y_test_pred, y_test, loss_train, loss_test, spatial_R_test, spatial_rmse_test, current_epochs = run_with_weighted_loss(
+        y_train_pred, y_train, y_test_pred, y_test, loss_train, loss_test, spatial_R_test, spatial_rmse_test, current_epochs = run_with_regular_loss(
             model, optimizer, device, train_loader, train_loader_for_test, test_loader, 
             encoder_name=encoder_name, 
             max_epochs=max_epochs, 
@@ -110,11 +93,10 @@ def run_supervised_SimSiam(requires_meteo=False, train_stations=-1, lr=5e-7):
             early_stopping_metric=early_stopping_metric, 
             requires_meteo=True, 
             scale_factor=scale_factor, 
-            spatial_factor=spatial_factor, 
             test_stations=test_stations
         )
     else:
-        y_train_pred, y_train, y_test_pred, y_test, loss_train, loss_test, spatial_R_test, spatial_rmse_test, current_epochs = run_with_weighted_loss(
+        y_train_pred, y_train, y_test_pred, y_test, loss_train, loss_test, spatial_R_test, spatial_rmse_test, current_epochs = run_with_regular_loss(
             model, optimizer, device, train_loader, train_loader_for_test, test_loader, 
             encoder_name=encoder_name, 
             max_epochs=max_epochs, 
@@ -135,26 +117,24 @@ def run_supervised_SimSiam(requires_meteo=False, train_stations=-1, lr=5e-7):
     spatial_R, spatial_rmse, station_avg_pred, station_avg = calculateSpatial(y_test_pred, y_test, test_stations)
     
     # Save spatial statistics
-    result_stats = {'RMSE': np.sqrt(metrics.mean_squared_error(y_test, y_test_pred)), 'spatial_R': spatial_R, 'spatial_RMSE': spatial_rmse}
-    result_path = './model_results/results_SimSiam_weighted_loss.pkl'
+    result_stats = {'RMSE': np.sqrt(metrics.mean_squared_error(y_test, y_test_pred)), 'Spatial_R': spatial_R, 'Spatial_RMSE': spatial_rmse}
+    result_path = './model_results/results_SimSiam_regular.pkl'
     os.makedirs(os.path.dirname(result_path), exist_ok=True)
     with open(result_path, 'ab') as fp:
         pkl.dump(result_stats, fp)
     
     # Visualize and save results
-    if requires_meteo:
-        plot_all(current_epochs, encoder_name, fig_size, loss_train, loss_test, y_train_pred, y_train, 
-                 y_test_pred, y_test, station_avg_pred, station_avg, spatial_R, spatial_R_test, spatial_rmse_test, train_stations=train_stations)
-    else:
-        plot_all(current_epochs, encoder_name, fig_size, loss_train, loss_test, y_train_pred, y_train, 
-                 y_test_pred, y_test, station_avg_pred, station_avg, spatial_R, train_stations=train_stations)
+#     if requires_meteo:
+#         plot_all(current_epochs, encoder_name, fig_size, loss_train, loss_test, y_train_pred, y_train, 
+#                  y_test_pred, y_test, station_avg_pred, station_avg, spatial_R, spatial_R_test, spatial_rmse_test, train_stations=train_stations)
+#     else:
+#         plot_all(current_epochs, encoder_name, fig_size, loss_train, loss_test, y_train_pred, y_train, 
+#                  y_test_pred, y_test, station_avg_pred, station_avg, spatial_R, train_stations=train_stations)
 
 def cli_main():
     stations_num = [1, 5, 10, 15, 20, 24]
-    lrs_no_meteo = [1.5e-6, 1.5e-6, 1.5e-6, 1.5e-6, 1.5e-6, 1e-6]   # ResNet18
-    lrs_meteo = [5e-7, 1e-7, 1e-7, 1.5e-7, 1.5e-7, 1.5e-7]   # ResNet18
-#     lrs_no_meteo = [8e-7, 4e-7, 2.5e-7, 2e-7, 2e-7, 2e-7]   # ResNet50
-#     lrs_meteo = [3e-7, 3e-8, 3e-8, 5e-8, 5e-8, 7e-8]   # ResNet50
+    lrs_no_meteo = [1e-6, 3e-7, 1.5e-7, 1e-7, 7e-8, 5e-8]   # ResNet50
+    lrs_meteo = []   # ResNet50
 
     for i in range(len(stations_num)):
         # run_supervised_SimSiam(requires_meteo=True, train_stations=stations_num[i], lr=lrs_meteo[i])

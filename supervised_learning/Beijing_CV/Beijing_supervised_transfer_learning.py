@@ -12,7 +12,7 @@ from sklearn import metrics
 
 from cnn_models import ResNet_ImageNet_pretrained_no_meteo, ResNet_ImageNet_pretrained_joint_meteo
 from supervised_utils import eval_stat, plot_result, calculateSpatial, spatialRPlot, plot_all
-from supervised_utils import getTestStations
+from supervised_utils import getTestStations, getAllStations
 from supervised_utils import loadRTandRFModel, predictWithRF
 from supervised_utils import initializeCNNdata
 from train_test_utils import run_with_regular_loss
@@ -24,20 +24,19 @@ torch.cuda.manual_seed(2020)
 torch.cuda.manual_seed_all(2020)
 torch.backends.cudnn.deterministic = True
 
-def run_supervised_randomly_initialized(requires_meteo=False, train_stations=-1, lr=5e-8):
-    root_dir = '../../data/LA_labeled.pkl'
+def run_supervised_transfer_learning(holdout, requires_meteo=False, train_stations=-1, lr=5e-8):
+    root_dir = '../../data/Beijing_labeled.pkl'
     img_transform = transforms.ToTensor()
-    holdout = ['0007', '2022', '1103']
     test_stations = getTestStations(root_dir, holdout=holdout)
-    batch_size = 2
-    fig_size = 100
+    batch_size = 4
+    fig_size = 500
     scale_factor = 0.95
     scaler = None
     
     # Build Random Trees Embedding and Random Forest Model
     if requires_meteo:
-        rt_dir = '../../rt_rf_checkpoint/rt_model_LA.pkl'
-        rf_dir = '../../rt_rf_checkpoint/ML_RF_singlemet_LA.pkl'
+        rt_dir = '../../rt_rf_checkpoint/rt_model_Beijing.pkl'
+        rf_dir = '../../rt_rf_checkpoint/ML_RF_singlemet_Beijing.pkl'
         rt_model, rf_model, meteo_transformed_train, PM_train, meteo_transformed_test, PM_test = loadRTandRFModel(root_dir, rt_dir, rf_dir, holdout)
         y_train_pred_rf, y_test_pred_rf = predictWithRF(rf_model, meteo_transformed_train, meteo_transformed_test)
     
@@ -48,7 +47,7 @@ def run_supervised_randomly_initialized(requires_meteo=False, train_stations=-1,
                                                                                             rf_train=y_train_pred_rf, rf_test=y_test_pred_rf)
     else:
         train_loader, train_loader_for_test, test_loader, scaler = initializeCNNdata(root_dir, img_transform, batch_size, 
-                                                                     train_stations=train_stations, holdout=holdout, requires_meteo=False, normalized=False)
+                                                                     holdout=holdout, train_stations=train_stations, requires_meteo=False, normalized=False)
     # Visualize the Random Forest predictions
     if requires_meteo:
         Rsquared, pvalue, Rsquared_pearson, pvalue_pearson = eval_stat(y_train_pred_rf, PM_train)
@@ -65,14 +64,14 @@ def run_supervised_randomly_initialized(requires_meteo=False, train_stations=-1,
     max_epochs = 500
     early_stopping_threshold = 20
     early_stopping_metric = 'spatial_rmse'
-    encoder_name = 'resnet50_random_initialization'
+    encoder_name = 'resnet50_transfer_learning'
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     if requires_meteo:
-        model = ResNet_ImageNet_pretrained_joint_meteo(transformed_meteo_dim, pretrained=False, backbone='resnet50').to(device)
+        model = ResNet_ImageNet_pretrained_joint_meteo(transformed_meteo_dim, backbone='resnet50').to(device)
     else:
-        model = ResNet_ImageNet_pretrained_no_meteo(pretrained=False, backbone='resnet50').to(device)
+        model = ResNet_ImageNet_pretrained_no_meteo(backbone='resnet50').to(device)
         
-    optimizer = optim.SGD(model.parameters(), lr=lr, momentum=0.2, weight_decay=0.1)
+    optimizer = optim.SGD(model.parameters(), lr=lr, momentum=0.6, weight_decay=0.1)
     # optimizer = optim.Adam(model.parameters(), lr=lr, betas=(0.01, 0.01), weight_decay=0.1)
     gamma = 0.005
     exp_func = lambda epoch: np.exp(-gamma*epoch)
@@ -113,27 +112,28 @@ def run_supervised_randomly_initialized(requires_meteo=False, train_stations=-1,
     
     # Save spatial statistics
     result_stats = {'RMSE': np.sqrt(metrics.mean_squared_error(y_test, y_test_pred)), 'Spatial_R': spatial_R, 'Spatial_RMSE': spatial_rmse}
-    result_path = './model_results/results_randomly_initialized.pkl'
-    os.makedirs(os.path.dirname(result_path), exist_ok=True)
-    with open(result_path, 'ab') as fp:
-        pkl.dump(result_stats, fp)
-    
-    # Visualize and save results
-    if requires_meteo:
-        plot_all(current_epochs, encoder_name, fig_size, loss_train, loss_test, y_train_pred, y_train, 
-                 y_test_pred, y_test, station_avg_pred, station_avg, spatial_R, spatial_R_test, spatial_rmse_test, train_stations=train_stations, line_range=[0, 50])
-    else:
-        plot_all(current_epochs, encoder_name, fig_size, loss_train, loss_test, y_train_pred, y_train, 
-                 y_test_pred, y_test, station_avg_pred, station_avg, spatial_R, train_stations=train_stations, line_range=[0, 50])
+    return result_stats
 
 def cli_main():
-    stations_num = [1, 3, 5, 7, 9]
-    lrs_no_meteo = [3e-6, 7e-7, 5e-7, 3e-7, 1e-7]   # ResNet18
-    lrs_meteo = []   # ResNet18
-
+    stations = getAllStations('../../data/Beijing_labeled.pkl')
+    holdout_stations = [stations[:10], stations[10:20], stations[20:30]]
+    
+    stations_num = [1, 5, 10, 15, 20, 25]
+    lrs_no_meteo = [1e-6, 5e-7, 3e-7, 2e-7, 1.5e-7, 1e-7]   # ResNet50
+    lrs_meteo = []  # ResNet50
+    
     for i in range(len(stations_num)):
-        # run_supervised_randomly_initialized(requires_meteo=True, train_stations=stations_num[i], lr=lrs_meteo[i])
-        run_supervised_randomly_initialized(requires_meteo=False, train_stations=stations_num[i], lr=lrs_no_meteo[i])
+        rmse, spatial_r, spatial_rmse = [], [], []
+        for holdout in holdout_stations:
+            res = run_supervised_transfer_learning(holdout=holdout, requires_meteo=False, train_stations=stations_num[i], lr=lrs_no_meteo[i])
+            rmse.append(res['RMSE'])
+            spatial_r.append(res['Spatial_R'])
+            spatial_rmse.append(res['Spatial_RMSE'])
+        result_stats = {'RMSE': np.average(rmse), 'Spatial_R': np.average(spatial_r), 'Spatial_RMSE': np.average(spatial_rmse)}
+        result_path = './model_results/results_transfer_learning.pkl'
+        os.makedirs(os.path.dirname(result_path), exist_ok=True)
+        with open(result_path, 'ab') as fp:
+            pkl.dump(result_stats, fp)
 
 if __name__ == '__main__':
     cli_main()

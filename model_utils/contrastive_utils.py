@@ -8,8 +8,8 @@ from torch.utils.data import Dataset
 from sklearn.neighbors import NearestNeighbors
 
 
-# Image dataset used for contrastive learning (pre-training)
-class MySSLImageDataset(Dataset):
+# Image dataset used for spatiotemporal contrastive learning (SCL)
+class MySCLImageDataset(Dataset):
     """
     Args:
         root_dir (string): Directory with all the images.
@@ -115,6 +115,77 @@ class MySSLImageDataset(Dataset):
                 start_index = end_index + 0
         return res
 
+# Image dataset used for regular contrastive learning (CL)
+class MyCLImageDataset(Dataset):
+    """
+    Args:
+        root_dir (string): Directory with all the images.
+        mode ('train', 'val' or 'test', optional): Whether the dataset is for
+            training or validation
+        transform (callable, optional): Optional transform to be applied
+            on a sample.
+        train_val_ratio (float, optional): Ratio of train and validation data
+        
+    """
+    def __init__(self, root_dir, mode='train', transform=None, train_val_ratio=-1):
+        if mode not in ['train', 'val']:
+            raise Exception('Mode must be either \'train\' or \'val\'')
+        if mode == 'train' and train_val_ratio != -1:
+            raise Exception('Should not set train_val_ratio in train mode')
+        if mode == 'val' and (train_val_ratio > 1 or train_val_ratio <= 0):
+            raise Exception('train_val_ratio must be in the range (0, 1]')
+        
+        # Pass in parameters
+        self.mode = mode
+        self.transform = transform
+        self.train_val_ratio = train_val_ratio
+        
+        # Private variables
+        self.train_images, self.val_images = [], []
+        self.img_transform = transforms.ToPILImage()
+        
+        with open(root_dir, "rb") as fp:
+            grids = pkl.load(fp)
+        
+        # Split the data into train and validation set based on TIMESTAMPS
+        split_idx = int(self.train_val_ratio*len(grids)) if self.train_val_ratio != -1 else -1
+        if split_idx == -1:
+            for i in tqdm(range(len(grids)), position=0, leave=True):
+                self.train_images.append(grids[i]['Image'])
+        else:
+            for i in tqdm(range(len(grids)), position=0, leave=True):
+                self.train_images.append(grids[i]['Image'])
+                if i >= split_idx:
+                    self.val_images.append(grids[i]['Image'])
+        
+        # Remove unnecessary data
+        if self.mode == 'train':
+            del grids, self.val_images
+        else:
+            del grids, self.train_images
+        
+        
+    def __len__(self):
+        if self.mode == 'train':
+            return len(self.train_images)
+        else:
+            return len(self.val_images)
+
+
+    def __getitem__(self, idx):
+        if torch.is_tensor(idx):
+            idx = idx.tolist()
+
+        if self.mode == 'train':
+            img = self.img_transform(self.train_images[idx])
+        else:
+            img = self.img_transform(self.val_images[idx])
+
+        if self.transform:
+            img = self.transform(img)
+
+        return img, idx
+
 # Transform function used to find the spatiotemporal nearest neighbor of an image
 class SpatiotemporalTransform(object):
     """
@@ -130,8 +201,8 @@ class SpatiotemporalTransform(object):
         self.input_height = input_height
         self.transform = transforms.Compose([
             transforms.ToPILImage(),
-#             transforms.RandomResizedCrop(size=self.input_height),
-            transforms.CenterCrop(size=self.input_height), 
+            transforms.RandomResizedCrop(size=self.input_height),
+#             transforms.CenterCrop(size=self.input_height), 
 #             transforms.RandomHorizontalFlip(),
             transforms.ToTensor(),
         ])
