@@ -167,12 +167,12 @@ def run_with_regular_loss(model, optimizer, device, train_loader, train_loader_f
             y_test_pred_final = copy.copy(y_test_pred)
             y_train_final = copy.copy(y_train)
             y_test_final = copy.copy(y_test)
-
+    
     if (save_model):
         if requires_meteo:
-            torch.save(model.state_dict(), './model_checkpoint/pipeline_params_' + encoder_name + '_SimCLR_meteo.pkl')
+            torch.save(model.state_dict(), '/work/zj63/Contrastive_learning_for_PM25_prediction/model_checkpoint/pipeline_params_' + encoder_name + '_meteo.pkl')
         else:
-            torch.save(model.state_dict(), './model_checkpoint/pipeline_params_' + encoder_name + '_SimCLR_no_meteo.pkl')
+            torch.save(model.state_dict(), '/work/zj63/Contrastive_learning_for_PM25_prediction/model_checkpoint/pipeline_params_' + encoder_name + '_no_meteo.pkl')
     
     if test_stations:
         return y_train_pred_final.cpu().numpy(), y_train_final.cpu().numpy(), y_test_pred_final.cpu().numpy(), y_test_final.cpu().numpy(), loss_train_arr, loss_test_arr, spatial_R_test_arr, spatial_rmse_test_arr, current_epochs
@@ -362,12 +362,12 @@ def run_with_weighted_loss(model, optimizer, device, train_loader, train_loader_
             y_test_pred_final = copy.copy(y_test_pred)
             y_train_final = copy.copy(y_train)
             y_test_final = copy.copy(y_test)
-
+    
     if (save_model):
         if requires_meteo:
-            torch.save(model.state_dict(), './model_checkpoint/pipeline_params_' + encoder_name + '_transfer_learning_meteo_weighted_loss.pkl')
+            torch.save(model.state_dict(), '/work/zj63/Contrastive_learning_for_PM25_prediction/model_checkpoint/pipeline_params_' + encoder_name + '_meteo.pkl')
         else:
-            torch.save(model.state_dict(), './model_checkpoint/pipeline_params_' + encoder_name + '_transfer_learning_no_meteo_weighted_loss.pkl')
+            torch.save(model.state_dict(), '/work/zj63/Contrastive_learning_for_PM25_prediction/model_checkpoint/pipeline_params_' + encoder_name + '_no_meteo.pkl')
     
     if test_stations:
         return y_train_pred_final.cpu().numpy(), y_train_final.cpu().numpy(), y_test_pred_final.cpu().numpy(), y_test_final.cpu().numpy(), loss_train_arr, loss_test_arr, spatial_R_test_arr, spatial_rmse_test_arr, current_epochs
