@@ -87,7 +87,6 @@ def plot_result(y_pred, y_true, Rsquared, pvalue, Rsquared_pearson, pvalue_pears
 # To plot the spatial R and RMSE for the predicted and true PM2.5 along with the calculated statistics
 def spatialRPlot(color, y_test_ref,  y_test_ref_pred_raw, plot_label = 'test', save=False, fig_name="", line_range=[50, 150]):
     plt.clf()
-    fig, ax = plt.subplots(figsize=(12, 10))
     Rsquared, pvalue, Rsquared_pearson, pvalue_pearson = eval_stat(y_test_ref_pred_raw, y_test_ref)
     y_train_pred_mlpr,y_train, Rsquared, pvalue, Rsquared_pearson, pvalue_pearson = y_test_ref_pred_raw, y_test_ref, Rsquared, pvalue, Rsquared_pearson, pvalue_pearson
         
