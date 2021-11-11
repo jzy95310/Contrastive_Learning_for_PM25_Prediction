@@ -13,8 +13,9 @@ The structure of this repository is given below:
 ## Related Work
 Contrastive Learning
 - T. Chen, S. Kornblith, M. Norouzi, et al., "A simple framework for contrastive learning of visual representations," in International conference on machine learning, PMLR, 2020, pp. 1597-1607.
-- T. Chen, S. Kornblith, K. Swersky, et al., "Big self-supervised models are strong semi-supervised learners," arXiv preprint arXiv:2006.10029, 2020.
-- X. Chen and K. He, "Exploring simple siamese representation learning," in Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition, 2021, pp. 15750-15758.
+- T. Chen, S. Kornblith, K. Swersky, et al., "Big self-supervised models are strong semi-supervised learners," arXiv preprint arXiv:2006.10029, 2020. https://github.com/google-research/simclr
+- X. Chen and K. He, "Exploring simple siamese representation learning," in Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition, 2021, pp. 15750-15758. https://github.com/facebookresearch/simsiam
+- W. Falcon et al., Pytorch lightning, https://github.com/PyTorchLightning/pytorch-lightning, 2019.
 
 PM2.5 Prediction from Satellite Imagery
 - T. Zheng, M. H. Bergin, S. Hu, et al., "Estimating ground-level pm2.5 using micro-satellite images by a convolutional neural network and random forest approach," Atmospheric Environment, vol. 230, 2020. doi: 10.1016/j.atmosenv.2020.117451.
