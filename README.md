@@ -9,3 +9,12 @@ The structure of this repository is given below:
 - `model_utils`: This module contains all the utility functions for both contrastive and supervised learning tasks.
 - `rt_rf_checkpoint`: This module contains the pre-trained parameters for Random Forest and Totally Random Trees Embedding models, which are used for predicting PM2.5 with multi-modal data (e.g. satellite images, meteorology, AOD, etc.). This is considered as future work and is beyond the scope of this paper.
 - `supervised_learning`: This module contains scripts for training and testing the pre-trained model with satellite images and corresponding PM2.5 labels. 
+
+## Related Work
+Contrastive Learning
+- T. Chen, S. Kornblith, M. Norouzi, et al., "A simple framework for contrastive learning of visual representations," in International conference on machine learning, PMLR, 2020, pp. 1597-1607.
+- T. Chen, S. Kornblith, K. Swersky, et al., "Big self-supervised models are strong semi-supervised learners," arXiv preprint arXiv:2006.10029, 2020.
+- X. Chen and K. He, "Exploring simple siamese representation learning," in Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition, 2021, pp. 15750-15758.
+PM2.5 Prediction from Satellite Imagery
+- T. Zheng, M. H. Bergin, S. Hu, et al., "Estimating ground-level pm2.5 using micro-satellite images by a convolutional neural network and random forest approach," Atmospheric Environment, vol. 230, 2020. doi: 10.1016/j.atmosenv.2020.117451.
+- T. Zheng, M. Bergin, G. Wang, et al., "Local pm2.5 hotspot detector at 300 m resolution: A random forest-convolutional neural network joint model jointly trained on satellite images and meteorology," Remote Sensing, vol. 13, 2021. doi: 10.3390/rs13071356.
