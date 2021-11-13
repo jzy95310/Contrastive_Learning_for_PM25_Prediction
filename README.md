@@ -20,3 +20,6 @@ Contrastive Learning
 PM2.5 Prediction from Satellite Imagery
 - T. Zheng, M. H. Bergin, S. Hu, et al., "Estimating ground-level pm2.5 using micro-satellite images by a convolutional neural network and random forest approach," Atmospheric Environment, vol. 230, 2020. doi: 10.1016/j.atmosenv.2020.117451.
 - T. Zheng, M. Bergin, G. Wang, et al., "Local pm2.5 hotspot detector at 300 m resolution: A random forest-convolutional neural network joint model jointly trained on satellite images and meteorology," Remote Sensing, vol. 13, 2021. doi: 10.3390/rs13071356.
+
+## Conducting Experiments
+Before conducting experiments, please prepare the data in the format as specified in
