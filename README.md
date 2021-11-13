@@ -5,7 +5,7 @@ This repository presents a contrastive learning framework for predicting ground-
 The structure of this repository is given below:
 - `contrastive_learning`: This module contains scripts for unsupervised pre-training with unlabeled satellite images by using regular contrastive learning (SimCLR and SimSiam) frameworks and SCL frameworks.
 - `contrastive_models`: This module contains the backbone architecture of original SimCLR and SimSiam frameworks as well as the corresponding data augmentation functions.
-- `data`: This module contains the satellite imagery, PM2.5 data and pre-trained weights for both contrastive and supervised learning tasks. Please contact ziyang.jiang@duke.edu for data if you want to replicate the experiments. If you want to run the experiment with your own data, please follow the require format given in this module.
+- `data`: This module should contain the satellite imagery, PM2.5 data and pre-trained weights for both contrastive and supervised learning tasks.
 - `model_utils`: This module contains all the utility functions for both contrastive and supervised learning tasks.
 - `rt_rf_checkpoint`: This module contains the pre-trained parameters for Random Forest and Totally Random Trees Embedding models, which are used for predicting PM2.5 with multi-modal data (e.g. satellite images, meteorology, AOD, etc.). This is considered as future work and is beyond the scope of this paper.
 - `supervised_learning`: This module contains scripts for training and testing the pre-trained model with satellite images and corresponding PM2.5 labels. 
@@ -22,4 +22,4 @@ PM2.5 Prediction from Satellite Imagery
 - T. Zheng, M. Bergin, G. Wang, et al., "Local pm2.5 hotspot detector at 300 m resolution: A random forest-convolutional neural network joint model jointly trained on satellite images and meteorology," Remote Sensing, vol. 13, 2021. doi: 10.3390/rs13071356.
 
 ## Conducting Experiments
-Before conducting experiments, please prepare the data in the format as specified in
+Before conducting experiments, please first prepare the data in the format as specified in the file `requirements.md` under the `data` directory, or contact ziyang.jiang@duke.edu if you want to replicate the experiments in the paper. Next, run the scripts named in the `xxx_pretrain_SimCLR_xxx` or `xxx_pretrain_SimSiam_xxx` format under the `contrastive learning` directory. After that, the pre-trained model weights will be saved to the `data` directory. Finally, run the scripts named in the `xxx_supervised_xxx` format under the `supervised_learning` directory. This will generate the visualizations of PM2.5 predictions and the corresponding statistics.
