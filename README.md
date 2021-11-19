@@ -1,4 +1,4 @@
-# Contrastive_Learning_for_PM25_Prediction
+# Contrastive Learning for PM2.5 Prediction
 This repository presents a contrastive learning framework for predicting ground-level PM2.5 from high-resolution micro-satellite imagery. Two contrastive learning frameworks, SimCLR and SimSiam, are tested and then extended to formulate a new framework called Spatiotemporal Contrastive Learning (SCL). The satellite imagery and PM2.5 data is obtained from 2 cities: Delhi and Beijing. The original framework is implemented in Pytorch Lightning Bolts repository: https://github.com/PyTorchLightning/lightning-bolts. 
 
 ## Structure of the Repository
