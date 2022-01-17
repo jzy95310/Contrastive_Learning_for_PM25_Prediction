@@ -115,11 +115,15 @@ def run_with_regular_loss(model, optimizer, device, train_loader, train_loader_f
         if lr_scheduler is not None:
             lr_scheduler.step()
         y_train_pred, y_train, loss_train = test_with_regular_loss(model, device, train_loader_for_test, criterion_test, use_train=True, requires_meteo=requires_meteo, scale_factor=scale_factor, residual_factor=residual_factor)
-        y_test_pred, y_test, loss_test, spatial_R_test, spatial_rmse_test = test_with_regular_loss(model, device, test_loader, criterion_test, use_train=False, requires_meteo=requires_meteo, scale_factor=scale_factor, residual_factor=residual_factor, test_stations=test_stations, scaler=scaler)
+        if test_stations:
+            y_test_pred, y_test, loss_test, spatial_R_test, spatial_rmse_test = test_with_regular_loss(model, device, test_loader, criterion_test, use_train=False, requires_meteo=requires_meteo, scale_factor=scale_factor, residual_factor=residual_factor, test_stations=test_stations, scaler=scaler)
+        else:
+            y_test_pred, y_test, loss_test = test_with_regular_loss(model, device, test_loader, criterion_test, use_train=False, requires_meteo=requires_meteo, scale_factor=scale_factor, residual_factor=residual_factor, test_stations=test_stations, scaler=scaler)
         loss_train_arr.append(loss_train)
         loss_test_arr.append(loss_test)
-        spatial_rmse_test_arr.append(spatial_rmse_test)
-        spatial_R_test_arr.append(spatial_R_test)
+        if test_stations is not None:
+            spatial_rmse_test_arr.append(spatial_rmse_test)
+            spatial_R_test_arr.append(spatial_R_test)
         if early_stopping_metric == 'test_loss':
             if loss_test < loss_test_smallest:
                 early_stopping_count = 0
@@ -134,7 +138,7 @@ def run_with_regular_loss(model, optimizer, device, train_loader, train_loader_f
                     current_epochs = epoch + 0
                     print('Early stopping criterion reached. Exiting...')
                     break
-        elif early_stopping_metric == 'spatial_rmse':
+        elif early_stopping_metric == 'spatial_rmse' and test_stations is not None:
             if spatial_rmse_test < spatial_rmse_test_smallest:
                 early_stopping_count = 0
                 spatial_rmse_test_smallest = spatial_rmse_test + 0
@@ -148,7 +152,7 @@ def run_with_regular_loss(model, optimizer, device, train_loader, train_loader_f
                     current_epochs = epoch + 0
                     print('Early stopping criterion reached. Exiting...')
                     break
-        elif early_stopping_metric == 'spatial_r':
+        elif early_stopping_metric == 'spatial_r' and test_stations is not None:
             if spatial_R_test > spatial_R_test_largest:
                 early_stopping_count = 0
                 spatial_R_test_largest = spatial_R_test + 0
@@ -310,11 +314,15 @@ def run_with_weighted_loss(model, optimizer, device, train_loader, train_loader_
         if lr_scheduler is not None:
             lr_scheduler.step()
         y_train_pred, y_train, loss_train = test_with_weighted_loss(model, device, train_loader_for_test, criterion_test, use_train=True, requires_meteo=requires_meteo, scale_factor=scale_factor, residual_factor=residual_factor)
-        y_test_pred, y_test, loss_test, spatial_R_test, spatial_rmse_test = test_with_weighted_loss(model, device, test_loader, criterion_test, use_train=False, requires_meteo=requires_meteo, scale_factor=scale_factor, residual_factor=residual_factor, test_stations=test_stations, scaler=scaler)
+        if test_stations:
+            y_test_pred, y_test, loss_test, spatial_R_test, spatial_rmse_test = test_with_weighted_loss(model, device, test_loader, criterion_test, use_train=False, requires_meteo=requires_meteo, scale_factor=scale_factor, residual_factor=residual_factor, test_stations=test_stations, scaler=scaler)
+        else:
+            y_test_pred, y_test, loss_test = test_with_weighted_loss(model, device, test_loader, criterion_test, use_train=False, requires_meteo=requires_meteo, scale_factor=scale_factor, residual_factor=residual_factor, test_stations=test_stations, scaler=scaler)
         loss_train_arr.append(loss_train)
         loss_test_arr.append(loss_test)
-        spatial_rmse_test_arr.append(spatial_rmse_test)
-        spatial_R_test_arr.append(spatial_R_test)
+        if test_stations is not None:
+            spatial_rmse_test_arr.append(spatial_rmse_test)
+            spatial_R_test_arr.append(spatial_R_test)
         if early_stopping_metric == 'test_loss':
             if loss_test < loss_test_smallest:
                 early_stopping_count = 0
@@ -329,7 +337,7 @@ def run_with_weighted_loss(model, optimizer, device, train_loader, train_loader_
                     current_epochs = epoch + 0
                     print('Early stopping criterion reached. Exiting...')
                     break
-        elif early_stopping_metric == 'spatial_rmse':
+        elif early_stopping_metric == 'spatial_rmse' and test_stations is not None:
             if spatial_rmse_test < spatial_rmse_test_smallest:
                 early_stopping_count = 0
                 spatial_rmse_test_smallest = spatial_rmse_test + 0
@@ -343,7 +351,7 @@ def run_with_weighted_loss(model, optimizer, device, train_loader, train_loader_
                     current_epochs = epoch + 0
                     print('Early stopping criterion reached. Exiting...')
                     break
-        elif early_stopping_metric == 'spatial_r':
+        elif early_stopping_metric == 'spatial_r' and test_stations is not None:
             if spatial_R_test > spatial_R_test_largest:
                 early_stopping_count = 0
                 spatial_R_test_largest = spatial_R_test + 0
