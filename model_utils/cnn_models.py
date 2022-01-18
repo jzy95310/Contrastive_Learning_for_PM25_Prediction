@@ -29,7 +29,7 @@ class ResNet_ImageNet_pretrained_no_meteo(nn.Module):
             param.requires_grad = trainable
         
         # Model initialization
-        self.fc1 = nn.Linear(self.net.fc.out_features, 512)
+        self.fc1 = nn.Linear(1000, 512)
         self.dropout = nn.Dropout(p=0.2)
         self.relu = nn.ReLU()
         self.fc2 = nn.Linear(512, 512)
@@ -71,7 +71,7 @@ class ResNet_ImageNet_pretrained_joint_meteo(nn.Module):
             param.requires_grad = trainable
         
         # Model initialization
-        self.fc1 = nn.Linear(self.net.fc.out_features+transformed_meteo_size, 512)
+        self.fc1 = nn.Linear(1000+transformed_meteo_size, 512)
         self.dropout = nn.Dropout(p=0.2)
         self.relu = nn.ReLU()
         self.fc2 = nn.Linear(512, 512)
