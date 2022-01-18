@@ -11,22 +11,25 @@ for _ in range(2):
 
 # CNN model with ResNet architecture pretrained on ImageNet without meteorology
 class ResNet_ImageNet_pretrained_no_meteo(nn.Module):
-    def __init__(self, backbone='resnet18', pretrained=True, resnet_trainable=False):
+    def __init__(self, backbone='resnet18', pretrained=True, trainable=False):
         super(ResNet_ImageNet_pretrained_no_meteo, self).__init__()
         
         # Load the pretrained weights on ImageNet
         if backbone == 'resnet18':
-            resnet = models.resnet18(pretrained=pretrained)
+            self.net = models.resnet18(pretrained=pretrained)
+        elif backbone == 'resnet50':
+            self.net = models.resnet50(pretrained=pretrained)
+        elif backbone == 'alexnet':
+            self.net = models.alexnet(pretrained=pretrained)
         else:
-            resnet = models.resnet50(pretrained=pretrained)
+            raise Exception("The specified backbone is not defined.")
         
         # Freeze all feature extraction layers in the encoder
-        for param in resnet.parameters():
-            param.requires_grad = resnet_trainable
+        for param in self.net.parameters():
+            param.requires_grad = trainable
         
         # Model initialization
-        self.resnet_pretrained = resnet
-        self.fc1 = nn.Linear(self.resnet_pretrained.fc.out_features, 512)
+        self.fc1 = nn.Linear(self.net.fc.out_features, 512)
         self.dropout = nn.Dropout(p=0.2)
         self.relu = nn.ReLU()
         self.fc2 = nn.Linear(512, 512)
@@ -34,7 +37,7 @@ class ResNet_ImageNet_pretrained_no_meteo(nn.Module):
     
     
     def forward(self, image):
-        img_features = self.resnet_pretrained(image)
+        img_features = self.net(image)
         img_features = torch.flatten(img_features, 1)
 #         plt.imshow(img_features.cpu().detach().numpy())
 #         plt.colorbar()
@@ -50,22 +53,25 @@ class ResNet_ImageNet_pretrained_no_meteo(nn.Module):
 
 # CNN model with ResNet architecture pretrained on ImageNet with meteorology
 class ResNet_ImageNet_pretrained_joint_meteo(nn.Module):
-    def __init__(self, transformed_meteo_size, backbone='resnet18', pretrained=True, resnet_trainable=False):
+    def __init__(self, transformed_meteo_size, backbone='resnet18', pretrained=True, trainable=False):
         super(ResNet_ImageNet_pretrained_joint_meteo, self).__init__()
         
         # Load the pretrained weights on ImageNet
         if backbone == 'resnet18':
-            resnet = models.resnet18(pretrained=pretrained)
+            self.net = models.resnet18(pretrained=pretrained)
+        elif backbone == 'resnet50':
+            self.net = models.resnet50(pretrained=pretrained)
+        elif backbone == 'alexnet':
+            self.net = models.alexnet(pretrained=pretrained)
         else:
-            resnet = models.resnet50(pretrained=pretrained)
+            raise Exception("The specified backbone is not defined.")
         
         # Freeze all feature extraction layers in the encoder
-        for param in resnet.parameters():
-            param.requires_grad = resnet_trainable
+        for param in self.net.parameters():
+            param.requires_grad = trainable
         
         # Model initialization
-        self.resnet_pretrained = resnet
-        self.fc1 = nn.Linear(self.resnet_pretrained.fc.out_features+transformed_meteo_size, 512)
+        self.fc1 = nn.Linear(self.net.fc.out_features+transformed_meteo_size, 512)
         self.dropout = nn.Dropout(p=0.2)
         self.relu = nn.ReLU()
         self.fc2 = nn.Linear(512, 512)
