@@ -14,7 +14,7 @@ PROJECT_SAVE_DIR = "Figure_PDFs"
 import os
 if not (os.path.isdir(PROJECT_ROOT_DIR+'/'+PROJECT_SAVE_DIR)):
     print('Figure directory didn''t exist, creating now.')
-    os.mkdir(PROJECT_ROOT_DIR+'/'+PROJECT_SAVE_DIR)
+    os.mkdir(PROJECT_ROOT_DIR+'/'+PROJECT_SAVE_DIR, exist_ok=True)
 else:
     print('Figure directory exists.')
 
