@@ -179,9 +179,9 @@ def run_with_regular_loss(model, optimizer, device, train_loader, train_loader_f
             torch.save(model.state_dict(), '/work/zj63/Contrastive_learning_for_PM25_prediction/model_checkpoint/pipeline_params_' + encoder_name + '_no_meteo.pkl')
     
     if test_stations:
-        return y_train_pred_final.cpu().numpy(), y_train_final.cpu().numpy(), y_test_pred_final.cpu().numpy(), y_test_final.cpu().numpy(), loss_train_arr.cpu(), loss_test_arr.cpu(), spatial_R_test_arr.cpu(), spatial_rmse_test_arr.cpu(), current_epochs
+        return y_train_pred_final.cpu().numpy(), y_train_final.cpu().numpy(), y_test_pred_final.cpu().numpy(), y_test_final.cpu().numpy(), loss_train_arr, loss_test_arr, spatial_R_test_arr, spatial_rmse_test_arr, current_epochs
     else:
-        return y_train_pred_final.cpu().numpy(), y_train_final.cpu().numpy(), y_test_pred_final.cpu().numpy(), y_test_final.cpu().numpy(), loss_train_arr.cpu(), loss_test_arr.cpu(), current_epochs
+        return y_train_pred_final.cpu().numpy(), y_train_final.cpu().numpy(), y_test_pred_final.cpu().numpy(), y_test_final.cpu().numpy(), loss_train_arr, loss_test_arr, current_epochs
 
 # Train function with weighted MSE loss
 def train_with_weighted_loss(model, device, train_loader, criterion, optimizer, epoch, requires_meteo=False, scale_factor=-1, 
@@ -378,6 +378,6 @@ def run_with_weighted_loss(model, optimizer, device, train_loader, train_loader_
             torch.save(model.state_dict(), '/work/zj63/Contrastive_learning_for_PM25_prediction/model_checkpoint/pipeline_params_' + encoder_name + '_no_meteo.pkl')
     
     if test_stations:
-        return y_train_pred_final.cpu().numpy(), y_train_final.cpu().numpy(), y_test_pred_final.cpu().numpy(), y_test_final.cpu().numpy(), loss_train_arr.cpu(), loss_test_arr.cpu(), spatial_R_test_arr.cpu(), spatial_rmse_test_arr.cpu(), current_epochs
+        return y_train_pred_final.cpu().numpy(), y_train_final.cpu().numpy(), y_test_pred_final.cpu().numpy(), y_test_final.cpu().numpy(), loss_train_arr, loss_test_arr, spatial_R_test_arr, spatial_rmse_test_arr, current_epochs
     else:
-        return y_train_pred_final.cpu().numpy(), y_train_final.cpu().numpy(), y_test_pred_final.cpu().numpy(), y_test_final.cpu().numpy(), loss_train_arr.cpu(), loss_test_arr.cpu(), current_epochs
+        return y_train_pred_final.cpu().numpy(), y_train_final.cpu().numpy(), y_test_pred_final.cpu().numpy(), y_test_final.cpu().numpy(), loss_train_arr, loss_test_arr, current_epochs
