@@ -14,6 +14,11 @@ for _ in range(2):
     except Exception as err:
         pass
 
+torch.manual_seed(2020)
+torch.cuda.manual_seed(2020)
+torch.cuda.manual_seed_all(2020)
+torch.backends.cudnn.deterministic = True
+
 def cli_main():
     input_height = 100
     train_dataset_SSL = MySCLImageDataset(root_dir='../../data/Delhi_labeled_grouped_by_date_SimCLR_SimSiam.pkl', mode='train',
@@ -36,11 +41,11 @@ def cli_main():
 #         filepath='./model_checkpoint/Intermediate_checkpoints/{epoch:02d}-{val_loss:.2f}',
 #         period=50
 #     )
-    # early_stop_callback = EarlyStopping(monitor='avg_val_loss')
+    early_stop_callback = EarlyStopping(monitor='val_loss', patience=8)
     trainer = pl.Trainer(
         gpus=1, 
         max_epochs=max_epochs, 
-        callbacks=[bar], 
+        callbacks=[bar, early_stop_callback], 
         # checkpoint_callback=checkpoint_callback, 
     )
     trainer.fit(model=simclr_model, train_dataloaders=train_dataloader_SSL, val_dataloaders=val_dataloader_SSL)
