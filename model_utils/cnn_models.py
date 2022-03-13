@@ -79,7 +79,7 @@ class ResNet_ImageNet_pretrained_joint_meteo(nn.Module):
     
     
     def forward(self, image, transformed_meteo_features):
-        img_features = self.resnet_pretrained(image)
+        img_features = self.net(image)
         img_features = torch.flatten(img_features, 1)
         # Concatenate image representations with transformed meteo features
         x = torch.cat((img_features, transformed_meteo_features), dim=-1)
