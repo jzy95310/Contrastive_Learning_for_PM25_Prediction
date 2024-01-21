@@ -1,5 +1,10 @@
 # Contrastive Learning for PM2.5 Prediction
-This repository presents a contrastive learning framework for predicting ground-level PM2.5 from high-resolution micro-satellite imagery. Two contrastive learning frameworks, SimCLR and SimSiam, are tested and then extended to formulate a new framework called Spatiotemporal Contrastive Learning (SCL). The satellite imagery and PM2.5 data is obtained from 2 cities: Delhi and Beijing. The original framework is implemented in Pytorch Lightning Bolts repository: https://github.com/PyTorchLightning/lightning-bolts. 
+[Link to the paper](https://www.sciencedirect.com/science/article/pii/S2666017222000141)
+
+This repository presents a contrastive learning framework for predicting ground-level PM2.5 from high-resolution micro-satellite imagery. Two contrastive learning frameworks, SimCLR and SimSiam, are tested and then extended to formulate a new framework called Spatiotemporal Contrastive Learning (SCL). The satellite imagery and PM2.5 data is obtained from 2 cities: Delhi and Beijing. The original framework is implemented in Pytorch Lightning Bolts repository: https://github.com/PyTorchLightning/lightning-bolts.
+
+## Announcement
+Due to the continuous update of Pytorch Lightning and pl-bolts dependency, there might be some code conflicts when running the contrastive learning scripts. Therefore, if you just want to replicate the experimental results in the paper without dealing with those conflicts, please contact ziyang.jiang@duke.edu for pre-trained model weights.
 
 ## Structure of the Repository
 The structure of this repository is given below:
@@ -23,3 +28,16 @@ PM2.5 Prediction from Satellite Imagery
 
 ## Conducting Experiments
 Before conducting experiments, please first prepare the data in the format as specified in the file `requirements.md` under the `data` directory, or contact ziyang.jiang@duke.edu if you want to replicate the experiments in the paper. Next, run the scripts named in the `xxx_pretrain_SimCLR_xxx.py` or `xxx_pretrain_SimSiam_xxx.py` format under the `contrastive_learning` directory. After that, the pre-trained model weights will be saved to the `data` directory. Finally, run the scripts named in the `xxx_supervised_xxx.py` format under the `supervised_learning` directory. This will generate the visualizations of PM2.5 predictions and the corresponding statistics.
+
+## Citation
+If you publish any materials using this repository, please include the following Bibtex citation:
+```
+@article{jiang2022improving,
+  title={Improving spatial variation of ground-level PM2. 5 prediction with contrastive learning from satellite imagery},
+  author={Jiang, Ziyang and Zheng, Tongshu and Bergin, Mike and Carlson, David},
+  journal={Science of Remote Sensing},
+  pages={100052},
+  year={2022},
+  publisher={Elsevier}
+}
+```
