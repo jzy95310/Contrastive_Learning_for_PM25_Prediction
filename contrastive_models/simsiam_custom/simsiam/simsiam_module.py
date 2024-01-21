@@ -7,7 +7,7 @@ from pytorch_lightning.callbacks import LearningRateMonitor, ModelCheckpoint
 from torch.nn import functional as F
 
 from pl_bolts.models.self_supervised.resnets import resnet18, resnet50
-from pl_bolts.models.self_supervised.simsiam.models import SiameseArm
+from pl_bolts.models.self_supervised.byol.models import SiameseArm
 from pl_bolts.optimizers.lars import LARS
 from pl_bolts.optimizers.lr_scheduler import linear_warmup_decay
 from pl_bolts.transforms.dataset_normalizations import (
@@ -73,7 +73,7 @@ class SimSiam(pl.LightningModule):
         num_nodes: int = 1,
         arch: str = 'resnet50',
         hidden_mlp: int = 2048,
-        feat_dim: int = 128,
+        feat_dim: int = 2048,
         warmup_epochs: int = 10,
         max_epochs: int = 100,
         temperature: float = 0.1,
@@ -142,7 +142,7 @@ class SimSiam(pl.LightningModule):
 
         encoder = backbone(first_conv=self.first_conv, maxpool1=self.maxpool1, return_all_feature_maps=False, pretrained=False)
         self.online_network = SiameseArm(
-            encoder, input_dim=self.hidden_mlp, hidden_size=self.hidden_mlp, output_dim=self.feat_dim
+            encoder, encoder_out_dim=self.hidden_mlp, projector_hidden_dim=self.hidden_mlp, projector_out_dim=self.feat_dim
         )
 
     def forward(self, x):
@@ -164,8 +164,8 @@ class SimSiam(pl.LightningModule):
         img_2 = torch.squeeze(img_2, dim=0)
 
         # Image 1 to image 2 loss
-        _, z1, h1 = self.online_network(img_1)
-        _, z2, h2 = self.online_network(img_2)
+        z1, h1 = self.online_network(img_1)
+        z2, h2 = self.online_network(img_2)
         loss = self.cosine_similarity(h1, z2) / 2 + self.cosine_similarity(h2, z1) / 2
 
         # log results
@@ -181,8 +181,8 @@ class SimSiam(pl.LightningModule):
         img_2 = torch.squeeze(img_2, dim=0)
 
         # Image 1 to image 2 loss
-        _, z1, h1 = self.online_network(img_1)
-        _, z2, h2 = self.online_network(img_2)
+        z1, h1 = self.online_network(img_1)
+        z2, h2 = self.online_network(img_2)
         loss = self.cosine_similarity(h1, z2) / 2 + self.cosine_similarity(h2, z1) / 2
 
         # log results

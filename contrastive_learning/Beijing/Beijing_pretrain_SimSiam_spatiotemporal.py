@@ -8,16 +8,11 @@ from contrastive_utils import MySCLImageDataset, SpatiotemporalTransform
 for _ in range(2):
     try:
         import pytorch_lightning as pl
-        from pytorch_lightning.callbacks.progress import ProgressBar
+        from pytorch_lightning.callbacks.progress import TQDMProgressBar
         from pytorch_lightning.callbacks import EarlyStopping
         from simsiam_module import SimSiam
     except Exception as err:
         pass
-
-torch.manual_seed(2020)
-torch.cuda.manual_seed(2020)
-torch.cuda.manual_seed_all(2020)
-torch.backends.cudnn.deterministic = True
 
 def cli_main():
     input_height = 100
@@ -36,16 +31,16 @@ def cli_main():
     
     # Training
     max_epochs = 250   # If not specified, the default training_epochs is 1000
-    bar = ProgressBar(refresh_rate=500)
+    bar = TQDMProgressBar(refresh_rate=500)
 #     checkpoint_callback = ModelCheckpoint(
 #         filepath='./model_checkpoint/Intermediate_checkpoints/{epoch:02d}-{val_loss:.2f}',
 #         period=50
 #     )
-    early_stop_callback = EarlyStopping(monitor='val_loss', patience=8)
+    # early_stop_callback = EarlyStopping(monitor='avg_val_loss')
     trainer = pl.Trainer(
         gpus=1, 
         max_epochs=max_epochs, 
-        callbacks=[bar, early_stop_callback], 
+        callbacks=[bar], 
         # checkpoint_callback=checkpoint_callback, 
     )
     trainer.fit(model=simsiam_model, train_dataloaders=train_dataloader_SSL, val_dataloaders=val_dataloader_SSL)
